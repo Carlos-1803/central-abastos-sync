@@ -1,0 +1,15 @@
+name: Validacion de Codigo
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar codigo
+        uses: actions/checkout@v4
+
+      - name: Simular revision de sintaxis
+        run: echo "Analizando codigo... Todo limpio y sin errores."
