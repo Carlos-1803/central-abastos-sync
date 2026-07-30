@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="../buildMultiTargeting/CentralAbastos.Api.props" />
-</Project>
