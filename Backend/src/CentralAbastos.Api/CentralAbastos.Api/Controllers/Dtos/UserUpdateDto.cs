@@ -1,4 +1,4 @@
-namespace CentralAbastos.Api.Dtos
+namespace CentralAbastos.Api.Controllers.Dtos
 {
     public class UserUpdateDto
     {

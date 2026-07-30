@@ -26,7 +26,7 @@ namespace CentralAbastos.Api.Controllers
                 {
                     Id = o.Id,
                     ClientId = o.ClientId,
-                    ClientName = o.Client.Name,
+                    ClientName = o.Client != null ? o.Client.Name : string.Empty,
                     OrderDate = o.OrderDate,
                     Status = o.Status,
                     TotalAmount = o.TotalAmount,
@@ -35,12 +35,11 @@ namespace CentralAbastos.Api.Controllers
                     DeliveryAddress = o.DeliveryAddress,
                     DeliveryLatitude = o.DeliveryLatitude,
                     DeliveryLongitude = o.DeliveryLongitude,
-                    Notes = o.Notes,
                     Items = o.Items.Select(i => new OrderItemResponseDto
                     {
                         Id = i.Id,
                         ProductId = i.ProductId,
-                        ProductName = i.Product.Name,
+                        ProductName = i.Product != null ? i.Product.Name : string.Empty,
                         Quantity = i.Quantity,
                         UnitPrice = i.UnitPrice
                     }).ToList()
@@ -59,7 +58,7 @@ namespace CentralAbastos.Api.Controllers
                 {
                     Id = o.Id,
                     ClientId = o.ClientId,
-                    ClientName = o.Client.Name,
+                    ClientName = o.Client != null ? o.Client.Name : string.Empty,
                     OrderDate = o.OrderDate,
                     Status = o.Status,
                     TotalAmount = o.TotalAmount,
@@ -68,12 +67,11 @@ namespace CentralAbastos.Api.Controllers
                     DeliveryAddress = o.DeliveryAddress,
                     DeliveryLatitude = o.DeliveryLatitude,
                     DeliveryLongitude = o.DeliveryLongitude,
-                    Notes = o.Notes,
                     Items = o.Items.Select(i => new OrderItemResponseDto
                     {
                         Id = i.Id,
                         ProductId = i.ProductId,
-                        ProductName = i.Product.Name,
+                        ProductName = i.Product != null ? i.Product.Name : string.Empty,
                         Quantity = i.Quantity,
                         UnitPrice = i.UnitPrice
                     }).ToList()
@@ -101,23 +99,17 @@ namespace CentralAbastos.Api.Controllers
                 return NotFound();
             }
 
-            // Update scalar properties
             order.DeliveryAddress = dto.DeliveryAddress;
             order.DeliveryLatitude = dto.DeliveryLatitude;
             order.DeliveryLongitude = dto.DeliveryLongitude;
-            order.Notes = dto.Notes;
 
-            // Validate and update items
             if (dto.Items != null)
             {
-                // Remove existing items
                 _context.OrderItems.RemoveRange(order.Items);
 
-                // Add new items
                 order.Items = new List<OrderItem>();
                 foreach (var itemDto in dto.Items)
                 {
-                    // Validate ProductId exists
                     var productExists = await _context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
                     if (!productExists)
                     {
@@ -135,7 +127,6 @@ namespace CentralAbastos.Api.Controllers
                 }
             }
 
-            // Recalculate total amount
             order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
 
             try
@@ -161,14 +152,12 @@ namespace CentralAbastos.Api.Controllers
         [HttpPost]
         public async Task<ActionResult<OrderResponseDto>> PostOrder(OrderCreateDto dto)
         {
-            // Validate ClientId exists
             var clientExists = await _context.Clients.AnyAsync(c => c.Id == dto.ClientId);
             if (!clientExists)
             {
                 return BadRequest($"El ClientId {dto.ClientId} no existe.");
             }
 
-            // Validate each item's ProductId exists
             if (dto.Items != null)
             {
                 foreach (var itemDto in dto.Items)
@@ -187,63 +176,32 @@ namespace CentralAbastos.Api.Controllers
                 DeliveryAddress = dto.DeliveryAddress,
                 DeliveryLatitude = dto.DeliveryLatitude,
                 DeliveryLongitude = dto.DeliveryLongitude,
-                Notes = dto.Notes,
                 OrderDate = DateTime.UtcNow,
                 Status = "Pending",
-                // Note: AssignedTruckId and CreatedByUserId are left as default (0) and should be set elsewhere.
                 Items = new List<OrderItem>()
             };
 
-            foreach (var itemDto in dto.Items)
+            if (dto.Items != null)
             {
-                var orderItem = new OrderItem
+                foreach (var itemDto in dto.Items)
                 {
-                    ProductId = itemDto.ProductId,
-                    Quantity = itemDto.Quantity,
-                    UnitPrice = itemDto.UnitPrice
-                };
+                    var orderItem = new OrderItem
+                    {
+                        ProductId = itemDto.ProductId,
+                        Quantity = itemDto.Quantity,
+                        UnitPrice = itemDto.UnitPrice
+                    };
 
-                order.Items.Add(orderItem);
+                    order.Items.Add(orderItem);
+                }
             }
 
-            // Calculate total amount
             order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
 
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
 
-            // Get the client name for the response DTO
-            var clientName = await _context.Clients
-                .Where(c => c.Id == dto.ClientId)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync();
-
-            // Return DTO
-            var orderDto = new OrderResponseDto
-            {
-                Id = order.Id,
-                ClientId = order.ClientId,
-                ClientName = clientName ?? string.Empty,
-                OrderDate = order.OrderDate,
-                Status = order.Status,
-                TotalAmount = order.TotalAmount,
-                AssignedTruckId = order.AssignedTruckId,
-                TruckPlateNumber = order.AssignedTruck != null ? order.AssignedTruck.PlateNumber : null,
-                DeliveryAddress = order.DeliveryAddress,
-                DeliveryLatitude = order.DeliveryLatitude,
-                DeliveryLongitude = order.DeliveryLongitude,
-                Notes = order.Notes,
-                Items = order.Items.Select(i => new OrderItemResponseDto
-                {
-                    Id = i.Id,
-                    ProductId = i.ProductId,
-                    ProductName = i.Product.Name,
-                    Quantity = i.Quantity,
-                    UnitPrice = i.UnitPrice
-                }).ToList()
-            };
-
-            return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, orderDto);
+            return await GetOrder(order.Id);
         }
 
         // DELETE: api/Orders/5
@@ -263,31 +221,26 @@ namespace CentralAbastos.Api.Controllers
         }
 
         // GET: api/orders/routes/{choferId}
-        // Returns the delivery locations (latitude, longitude) for the orders assigned to the truck of the given driver
         [HttpGet("routes/{choferId}")]
         public async Task<ActionResult<IEnumerable<object>>> GetRoutesForDriver(int choferId)
         {
-            // Verify that the user exists and is a driver (role Chofer)
             var user = await _context.Users
                 .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Id == choferId);
 
-            if (user == null || user.Role.Name != "Chofer")
+            if (user == null || user.Role == null || user.Role.Name != "Chofer")
             {
-                return NotFound($"User with id {choferId} is not a driver.");
+                return NotFound($"El usuario con ID {choferId} no es un chofer.");
             }
 
-            // Find the truck assigned to this driver
             var truck = await _context.Trucks
                 .FirstOrDefaultAsync(t => t.DriverId == choferId);
 
             if (truck == null)
             {
-                return NotFound($"No truck assigned to driver with id {choferId}.");
+                return NotFound($"No hay un camión asignado al chofer con ID {choferId}.");
             }
 
-            // Get orders assigned to this truck that are in a status ready for delivery
-            // We consider statuses: "Shipped" or "Out for Delivery"
             var orders = await _context.Orders
                 .Where(o => o.AssignedTruckId == truck.Id &&
                             (o.Status == "Shipped" || o.Status == "Out for Delivery"))
@@ -297,7 +250,7 @@ namespace CentralAbastos.Api.Controllers
                     deliveryAddress = o.DeliveryAddress,
                     latitude = o.DeliveryLatitude,
                     longitude = o.DeliveryLongitude,
-                    customerName = o.Client.Name,
+                    customerName = o.Client != null ? o.Client.Name : string.Empty,
                     orderDate = o.OrderDate
                 })
                 .ToListAsync();
