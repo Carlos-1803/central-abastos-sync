@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CentralAbastos.Api.Models;
 using CentralAbastos.Api.Data;
+using CentralAbastos.Api.Controllers.Dtos;
 
 namespace CentralAbastos.Api.Controllers
 {
@@ -18,31 +19,65 @@ namespace CentralAbastos.Api.Controllers
 
         // GET: api/Orders
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Order>>> GetOrders()
+        public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetOrders()
         {
-            return await _context.Orders
-                .Include(o => o.Client)
-                .Include(o => o.AssignedTruck)
-                .ThenInclude(t => t.Driver)
-                .Include(o => o.CreatedByUser)
-                .ThenInclude(u => u.Role)
-                .Include(o => o.Items)
-                .ThenInclude(oi => oi.Product)
+            var orders = await _context.Orders
+                .Select(o => new OrderResponseDto
+                {
+                    Id = o.Id,
+                    ClientId = o.ClientId,
+                    ClientName = o.Client.Name,
+                    OrderDate = o.OrderDate,
+                    Status = o.Status,
+                    TotalAmount = o.TotalAmount,
+                    AssignedTruckId = o.AssignedTruckId,
+                    TruckPlateNumber = o.AssignedTruck != null ? o.AssignedTruck.PlateNumber : null,
+                    DeliveryAddress = o.DeliveryAddress,
+                    DeliveryLatitude = o.DeliveryLatitude,
+                    DeliveryLongitude = o.DeliveryLongitude,
+                    Notes = o.Notes,
+                    Items = o.Items.Select(i => new OrderItemResponseDto
+                    {
+                        Id = i.Id,
+                        ProductId = i.ProductId,
+                        ProductName = i.Product.Name,
+                        Quantity = i.Quantity,
+                        UnitPrice = i.UnitPrice
+                    }).ToList()
+                })
                 .ToListAsync();
+
+            return Ok(orders);
         }
 
         // GET: api/Orders/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Order>> GetOrder(int id)
+        public async Task<ActionResult<OrderResponseDto>> GetOrder(int id)
         {
             var order = await _context.Orders
-                .Include(o => o.Client)
-                .Include(o => o.AssignedTruck)
-                .ThenInclude(t => t.Driver)
-                .Include(o => o.CreatedByUser)
-                .ThenInclude(u => u.Role)
-                .Include(o => o.Items)
-                .ThenInclude(oi => oi.Product)
+                .Select(o => new OrderResponseDto
+                {
+                    Id = o.Id,
+                    ClientId = o.ClientId,
+                    ClientName = o.Client.Name,
+                    OrderDate = o.OrderDate,
+                    Status = o.Status,
+                    TotalAmount = o.TotalAmount,
+                    AssignedTruckId = o.AssignedTruckId,
+                    TruckPlateNumber = o.AssignedTruck != null ? o.AssignedTruck.PlateNumber : null,
+                    DeliveryAddress = o.DeliveryAddress,
+                    DeliveryLatitude = o.DeliveryLatitude,
+                    DeliveryLongitude = o.DeliveryLongitude,
+                    Notes = o.Notes,
+                    Items = o.Items.Select(i => new OrderItemResponseDto
+                    {
+                        Id = i.Id,
+                        ProductId = i.ProductId,
+                        ProductName = i.Product.Name,
+                        Quantity = i.Quantity,
+                        UnitPrice = i.UnitPrice
+                    }).ToList()
+                })
                 .FirstOrDefaultAsync(o => o.Id == id);
 
             if (order == null)
@@ -50,19 +85,58 @@ namespace CentralAbastos.Api.Controllers
                 return NotFound();
             }
 
-            return order;
+            return Ok(order);
         }
 
         // PUT: api/Orders/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutOrder(int id, Order order)
+        public async Task<IActionResult> PutOrder(int id, OrderUpdateDto dto)
         {
-            if (id != order.Id)
+            var order = await _context.Orders
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.Id == id);
+
+            if (order == null)
             {
-                return BadRequest();
+                return NotFound();
             }
 
-            _context.Entry(order).State = EntityState.Modified;
+            // Update scalar properties
+            order.DeliveryAddress = dto.DeliveryAddress;
+            order.DeliveryLatitude = dto.DeliveryLatitude;
+            order.DeliveryLongitude = dto.DeliveryLongitude;
+            order.Notes = dto.Notes;
+
+            // Validate and update items
+            if (dto.Items != null)
+            {
+                // Remove existing items
+                _context.OrderItems.RemoveRange(order.Items);
+
+                // Add new items
+                order.Items = new List<OrderItem>();
+                foreach (var itemDto in dto.Items)
+                {
+                    // Validate ProductId exists
+                    var productExists = await _context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
+                    if (!productExists)
+                    {
+                        return BadRequest($"El ProductId {itemDto.ProductId} no existe.");
+                    }
+
+                    var orderItem = new OrderItem
+                    {
+                        ProductId = itemDto.ProductId,
+                        Quantity = itemDto.Quantity,
+                        UnitPrice = itemDto.UnitPrice
+                    };
+
+                    order.Items.Add(orderItem);
+                }
+            }
+
+            // Recalculate total amount
+            order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
 
             try
             {
@@ -85,22 +159,91 @@ namespace CentralAbastos.Api.Controllers
 
         // POST: api/Orders
         [HttpPost]
-        public async Task<ActionResult<Order>> PostOrder(Order order)
+        public async Task<ActionResult<OrderResponseDto>> PostOrder(OrderCreateDto dto)
         {
-            if (order.Items == null || !order.Items.Any())
+            // Validate ClientId exists
+            var clientExists = await _context.Clients.AnyAsync(c => c.Id == dto.ClientId);
+            if (!clientExists)
             {
-                return BadRequest("Order must contain at least one item.");
+                return BadRequest($"El ClientId {dto.ClientId} no existe.");
             }
 
-            // Calculate total amount from items
+            // Validate each item's ProductId exists
+            if (dto.Items != null)
+            {
+                foreach (var itemDto in dto.Items)
+                {
+                    var productExists = await _context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
+                    if (!productExists)
+                    {
+                        return BadRequest($"El ProductId {itemDto.ProductId} no existe.");
+                    }
+                }
+            }
+
+            var order = new Order
+            {
+                ClientId = dto.ClientId,
+                DeliveryAddress = dto.DeliveryAddress,
+                DeliveryLatitude = dto.DeliveryLatitude,
+                DeliveryLongitude = dto.DeliveryLongitude,
+                Notes = dto.Notes,
+                OrderDate = DateTime.UtcNow,
+                Status = "Pending",
+                // Note: AssignedTruckId and CreatedByUserId are left as default (0) and should be set elsewhere.
+                Items = new List<OrderItem>()
+            };
+
+            foreach (var itemDto in dto.Items)
+            {
+                var orderItem = new OrderItem
+                {
+                    ProductId = itemDto.ProductId,
+                    Quantity = itemDto.Quantity,
+                    UnitPrice = itemDto.UnitPrice
+                };
+
+                order.Items.Add(orderItem);
+            }
+
+            // Calculate total amount
             order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
-            // Ensure order date is set
-            order.OrderDate = order.OrderDate == default ? DateTime.UtcNow : order.OrderDate;
 
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
+            // Get the client name for the response DTO
+            var clientName = await _context.Clients
+                .Where(c => c.Id == dto.ClientId)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync();
+
+            // Return DTO
+            var orderDto = new OrderResponseDto
+            {
+                Id = order.Id,
+                ClientId = order.ClientId,
+                ClientName = clientName ?? string.Empty,
+                OrderDate = order.OrderDate,
+                Status = order.Status,
+                TotalAmount = order.TotalAmount,
+                AssignedTruckId = order.AssignedTruckId,
+                TruckPlateNumber = order.AssignedTruck != null ? order.AssignedTruck.PlateNumber : null,
+                DeliveryAddress = order.DeliveryAddress,
+                DeliveryLatitude = order.DeliveryLatitude,
+                DeliveryLongitude = order.DeliveryLongitude,
+                Notes = order.Notes,
+                Items = order.Items.Select(i => new OrderItemResponseDto
+                {
+                    Id = i.Id,
+                    ProductId = i.ProductId,
+                    ProductName = i.Product.Name,
+                    Quantity = i.Quantity,
+                    UnitPrice = i.UnitPrice
+                }).ToList()
+            };
+
+            return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, orderDto);
         }
 
         // DELETE: api/Orders/5

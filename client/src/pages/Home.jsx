@@ -1,4 +1,4 @@
-import { Card } from '../components/Card';
+import Card from '../components/Card';
 
 const Home = () => {
   return (
@@ -51,7 +51,7 @@ const Home = () => {
               <span>Database: Online</span>
             </div>
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-3 w-3 bg-green-500 rounded-full"></span>
+              <div className="flex-shrink-0 h-3 w-3 bg-green-500 rounded-full"></div>
                 <span>API Server: Online</span>
               </div>
             <div className="flex items-center">

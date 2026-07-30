@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CentralAbastos.Api.Models;
 using CentralAbastos.Api.Data;
+using CentralAbastos.Api.Controllers.Dtos;
 
 namespace CentralAbastos.Api.Controllers
 {
@@ -18,14 +19,25 @@ namespace CentralAbastos.Api.Controllers
 
         // GET: api/Clients
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Client>>> GetClients()
+        public async Task<ActionResult<IEnumerable<ClientResponseDto>>> GetClients()
         {
-            return await _context.Clients.ToListAsync();
+            var clients = await _context.Clients
+                .Select(c => new ClientResponseDto
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Phone = c.Phone,
+                    Address = c.Address,
+                    IsActive = c.IsActive
+                })
+                .ToListAsync();
+
+            return Ok(clients);
         }
 
         // GET: api/Clients/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Client>> GetClient(int id)
+        public async Task<ActionResult<ClientResponseDto>> GetClient(int id)
         {
             var client = await _context.Clients.FindAsync(id);
 
@@ -34,19 +46,38 @@ namespace CentralAbastos.Api.Controllers
                 return NotFound();
             }
 
-            return client;
+            var clientDto = new ClientResponseDto
+            {
+                Id = client.Id,
+                Name = client.Name,
+                Phone = client.Phone,
+                Address = client.Address,
+                IsActive = client.IsActive
+            };
+
+            return Ok(clientDto);
         }
 
         // PUT: api/Clients/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutClient(int id, Client client)
+        public async Task<IActionResult> PutClient(int id, ClientUpdateDto clientDto)
         {
-            if (id != client.Id)
+            if (id == 0) // Assuming ID must be positive, but actually id from route should match
             {
-                return BadRequest();
+                return BadRequest("Client ID is required");
             }
 
-            _context.Entry(client).State = EntityState.Modified;
+            var client = await _context.Clients.FindAsync(id);
+            if (client == null)
+            {
+                return NotFound();
+            }
+
+            // Map DTO to entity
+            client.Name = clientDto.Name;
+            client.Phone = clientDto.Phone;
+            client.Address = clientDto.Address;
+            client.IsActive = clientDto.IsActive;
 
             try
             {
@@ -69,12 +100,29 @@ namespace CentralAbastos.Api.Controllers
 
         // POST: api/Clients
         [HttpPost]
-        public async Task<ActionResult<Client>> PostClient(Client client)
+        public async Task<ActionResult<ClientResponseDto>> PostClient(ClientCreateDto clientDto)
         {
+            var client = new Client
+            {
+                Name = clientDto.Name,
+                Phone = clientDto.Phone,
+                Address = clientDto.Address,
+                IsActive = clientDto.IsActive
+            };
+
             _context.Clients.Add(client);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetClient), new { id = client.Id }, client);
+            var clientDtoResult = new ClientResponseDto
+            {
+                Id = client.Id,
+                Name = client.Name,
+                Phone = client.Phone,
+                Address = client.Address,
+                IsActive = client.IsActive
+            };
+
+            return CreatedAtAction(nameof(GetClient), new { id = client.Id }, clientDtoResult);
         }
 
         // DELETE: api/Clients/5

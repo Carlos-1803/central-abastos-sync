@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using CentralAbastos.Api.Models;
 using CentralAbastos.Api.Data;
+using CentralAbastos.Api.Controllers.Dtos;
 
 namespace CentralAbastos.Api.Controllers
 {
@@ -16,18 +16,41 @@ namespace CentralAbastos.Api.Controllers
             _context = context;
         }
 
-        // GET: api/Products
+        // GET: api/products
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<ProductResponseDto>>> GetProducts()
         {
-            return await _context.Products.ToListAsync();
+            var products = await _context.Products
+                .Select(p => new ProductResponseDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    Price = p.Price,
+                    Stock = p.Stock,
+                    IsActive = p.IsActive
+                })
+                .ToListAsync();
+
+            return Ok(products);
         }
 
-        // GET: api/Products/5
+        // GET: api/products/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Product>> GetProduct(int id)
+        public async Task<ActionResult<ProductResponseDto>> GetProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
+            var product = await _context.Products
+                .Where(p => p.Id == id)
+                .Select(p => new ProductResponseDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    Price = p.Price,
+                    Stock = p.Stock,
+                    IsActive = p.IsActive
+                })
+                .FirstOrDefaultAsync();
 
             if (product == null)
             {
@@ -37,16 +60,21 @@ namespace CentralAbastos.Api.Controllers
             return product;
         }
 
-        // PUT: api/Products/5
+        // PUT: api/products/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutProduct(int id, Product product)
+        public async Task<IActionResult> PutProduct(int id, ProductUpdateDto dto)
         {
-            if (id != product.Id)
+            var product = await _context.Products.FindAsync(id);
+            if (product == null)
             {
-                return BadRequest();
+                return NotFound();
             }
 
-            _context.Entry(product).State = EntityState.Modified;
+            product.Name = dto.Name;
+            product.Description = dto.Description;
+            product.Price = dto.Price;
+            product.Stock = dto.Stock;
+            product.IsActive = dto.IsActive;
 
             try
             {
@@ -67,17 +95,36 @@ namespace CentralAbastos.Api.Controllers
             return NoContent();
         }
 
-        // POST: api/Products
+        // POST: api/products
         [HttpPost]
-        public async Task<ActionResult<Product>> PostProduct(Product product)
+        public async Task<ActionResult<ProductResponseDto>> PostProduct(ProductCreateDto dto)
         {
+            var product = new Product
+            {
+                Name = dto.Name,
+                Description = dto.Description,
+                Price = dto.Price,
+                Stock = dto.Stock,
+                IsActive = dto.IsActive
+            };
+
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+            var productDto = new ProductResponseDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Description = product.Description,
+                Price = product.Price,
+                Stock = product.Stock,
+                IsActive = product.IsActive
+            };
+
+            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, productDto);
         }
 
-        // DELETE: api/Products/5
+        // DELETE: api/products/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {

@@ -1,6 +1,6 @@
 import Sidebar from './Sidebar';
 import { Outlet } from 'react-router-dom';
-import './App.css'; // optional
+import '../index.css'; // optional
 
 const Layout = ({ children }) => {
   return (

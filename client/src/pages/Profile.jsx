@@ -89,7 +89,7 @@ const Profile = () => {
               <span>Last Login</span>
               <span className="font-medium">Today, 10:30 AM</span>
             </div>
-            <div class="flex justify-between">
+            <div className="flex justify-between">
               <span>Profile Completeness</span>
               <span className="font-medium">80%</span>
             </div>

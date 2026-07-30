@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CentralAbastos.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+00701be41500dab5afeecd151a54592acf108271")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bca33d113db114a0e7029ae66d9e5bd47142f39c")]
 [assembly: System.Reflection.AssemblyProductAttribute("CentralAbastos.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CentralAbastos.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
