@@ -21,3 +21,18 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+# .NET
+bin/
+obj/
+*.user
+*.suo
+
+# Node / React / Vite
+node_modules/
+dist/
+.vite/
+
+# Archivos de entorno y logs
+*.log
+.env
+.DS_Store
