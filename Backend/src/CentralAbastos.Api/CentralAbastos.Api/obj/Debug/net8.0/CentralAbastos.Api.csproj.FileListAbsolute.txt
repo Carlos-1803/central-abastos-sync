@@ -1,11 +1,3 @@
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.csproj.AssemblyReference.cache
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.GeneratedMSBuildEditorConfig.editorconfig
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.AssemblyInfoInputs.cache
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.AssemblyInfo.cs
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.csproj.CoreCompileInputs.cache
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.MvcApplicationPartsAssemblyInfo.cs
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.MvcApplicationPartsAssemblyInfo.cache
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.sourcelink.json
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/appsettings.Development.json
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/appsettings.json
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/CentralAbastos.Api
@@ -26,7 +18,6 @@
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/Microsoft.EntityFrameworkCore.Relational.dll
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/Microsoft.Extensions.Caching.Abstractions.dll
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/Microsoft.Extensions.Caching.Memory.dll
-/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/Microsoft.Extensions.Configuration.Abstractions.dll
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/Microsoft.Extensions.DependencyInjection.dll
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/Microsoft.Extensions.DependencyModel.dll
@@ -100,6 +91,14 @@
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/tr/Microsoft.CodeAnalysis.Workspaces.resources.dll
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/zh-Hans/Microsoft.CodeAnalysis.Workspaces.resources.dll
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/bin/Debug/net8.0/zh-Hant/Microsoft.CodeAnalysis.Workspaces.resources.dll
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.csproj.AssemblyReference.cache
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.GeneratedMSBuildEditorConfig.editorconfig
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.AssemblyInfoInputs.cache
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.AssemblyInfo.cs
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.csproj.CoreCompileInputs.cache
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.MvcApplicationPartsAssemblyInfo.cs
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.MvcApplicationPartsAssemblyInfo.cache
+/home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/CentralAbastos.Api.sourcelink.json
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/staticwebassets.build.json
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/staticwebassets.development.json
 /home/admin/code-web/central-abastos-sync/Backend/src/CentralAbastos.Api/CentralAbastos.Api/obj/Debug/net8.0/staticwebassets/msbuild.CentralAbastos.Api.Microsoft.AspNetCore.StaticWebAssets.props

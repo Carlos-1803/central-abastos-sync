@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS Clients (
     IsActive BIT NOT NULL DEFAULT 1
 );
 
--- Trucks table
+-- Trucks table  camiones
 CREATE TABLE IF NOT EXISTS Trucks (
     Id INT PRIMARY KEY AUTO_INCREMENT,
     PlateNumber VARCHAR(20) NOT NULL UNIQUE,
