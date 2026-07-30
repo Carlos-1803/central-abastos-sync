@@ -35,9 +35,9 @@ namespace CentralAbastos.Api.Controllers.Dtos
         [StringLength(200)]
         public string DeliveryAddress { get; set; }
 
-        public decimal? DeliveryLatitude { get; set; }
+        public double? DeliveryLatitude { get; set; }
 
-        public decimal? DeliveryLongitude { get; set; }
+        public double? DeliveryLongitude { get; set; }
 
         [StringLength(500)]
         public string Notes { get; set; }
@@ -51,9 +51,9 @@ namespace CentralAbastos.Api.Controllers.Dtos
         [StringLength(200)]
         public string DeliveryAddress { get; set; }
 
-        public decimal? DeliveryLatitude { get; set; }
+        public double? DeliveryLatitude { get; set; }
 
-        public decimal? DeliveryLongitude { get; set; }
+        public double? DeliveryLongitude { get; set; }
 
         [StringLength(500)]
         public string Notes { get; set; }
@@ -72,8 +72,8 @@ namespace CentralAbastos.Api.Controllers.Dtos
         public int? AssignedTruckId { get; set; }
         public string TruckPlateNumber { get; set; }
         public string DeliveryAddress { get; set; }
-        public decimal? DeliveryLatitude { get; set; }
-        public decimal? DeliveryLongitude { get; set; }
+        public double? DeliveryLatitude { get; set; }
+        public double? DeliveryLongitude { get; set; }
         public string Notes { get; set; }
         public List<OrderItemResponseDto> Items { get; set; } = new List<OrderItemResponseDto>();
     }

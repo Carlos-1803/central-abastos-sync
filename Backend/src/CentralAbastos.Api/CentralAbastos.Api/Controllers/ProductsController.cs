@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CentralAbastos.Api.Data;
 using CentralAbastos.Api.Controllers.Dtos;
+using CentralAbastos.Api.Models;
 
 namespace CentralAbastos.Api.Controllers
 {

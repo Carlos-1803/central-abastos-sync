@@ -18,22 +18,22 @@ namespace CentralAbastos.Api.Controllers
         }
 
         // GET: api/Users
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsers()
+       [HttpGet]
+public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsers()
+{
+    var users = await _context.Users
+        .Include(u => u.Role) // Para obtener el Nombre del Rol
+        .Select(u => new UserResponseDto
         {
-            var users = await _context.Users
-                .Include(u => u.Role)
-                .Select(u => new UserResponseDto
-                {
-                    Id = u.Id,
-                    Username = u.Username,
-                    RoleId = u.RoleId,
-                    RoleName = u.Role.Name
-                })
-                .ToListAsync();
+            Id = u.Id,
+            Username = u.Username,
+            RoleId = u.RoleId,
+            RoleName = u.Role != null ? u.Role.Name : string.Empty
+        })
+        .ToListAsync();
 
-            return Ok(users);
-        }
+    return Ok(users);
+}
 
         // GET: api/Users/5
         [HttpGet("{id}")]

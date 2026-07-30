@@ -15,12 +15,12 @@ namespace CentralAbastos.Api.Controllers.Dtos
         public int Year { get; set; }
 
         [Range(0, 50000)]
-        public decimal CapacityKg { get; set; }
+        public double CapacityKg { get; set; }
 
         public bool IsActive { get; set; } = true;
 
         [Required]
-        public int DriverId { get; set; }
+        public int? DriverId { get; set; }
     }
 
     public class TruckUpdateDto
@@ -36,12 +36,12 @@ namespace CentralAbastos.Api.Controllers.Dtos
         public int Year { get; set; }
 
         [Range(0, 50000)]
-        public decimal CapacityKg { get; set; }
+        public double CapacityKg { get; set; }
 
         public bool IsActive { get; set; }
 
         [Required]
-        public int DriverId { get; set; }
+        public int? DriverId { get; set; }
     }
 
     public class TruckResponseDto
@@ -50,9 +50,9 @@ namespace CentralAbastos.Api.Controllers.Dtos
         public string PlateNumber { get; set; }
         public string Model { get; set; }
         public int Year { get; set; }
-        public decimal CapacityKg { get; set; }
+        public double CapacityKg { get; set; }
         public bool IsActive { get; set; }
-        public int DriverId { get; set; }
+        public int? DriverId { get; set; }
         public string DriverName { get; set; } // Populated via Join in GET
     }
 }
