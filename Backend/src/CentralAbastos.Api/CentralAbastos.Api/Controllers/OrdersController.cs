@@ -280,7 +280,7 @@ public async Task<IActionResult> AssignTruckToOrder(int id, [FromQuery] int truc
 
     await _context.SaveChangesAsync();
     return NoContent();
-}a
+}
 
         private bool OrderExists(int id)
         {
