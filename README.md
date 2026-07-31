@@ -67,22 +67,35 @@ El sistema sigue una arquitectura de tres capas totalmente desacoplada:
 
 ```mermaid
 flowchart LR
-    subgraph Usuario[Usuario Final]
+    subgraph Usuario["Usuario Final"]
         direction TB
-        A[Navegador Web] -->|HTTPS/HTTP| B[(API Gateway)]
+        A["Navegador Web"]
     end
-    subgraph Backend[Backend (.NET 8 Web API)]
+
+    subgraph Backend["Backend (.NET 8 Web API)"]
         direction TB
-        B --> C[Controladores REST]
-        C --> D[Servicios de Aplicación]
-        D --> E[Acceso a Datos (EF Core)]
-        E --> F[(MySQL)]
+        B["API Gateway / Controllers"]
+        C["Controladores REST"]
+        D["Servicios de Aplicación"]
+        E["Acceso a Datos (EF Core)"]
+        F[("MySQL")]
+
+        B --> C
+        C --> D
+        D --> E
+        E --> F
     end
-    subgraph Frontend[Frontend (React/Vite)]
+
+    subgraph Frontend["Frontend (React/Vite)"]
         direction TB
-        G[React SPA] -->|Axios (JSON)| B
-        G -->|Assets estáticos| B
+        G["React SPA"]
+        H["Assets estáticos"]
+        G --> H
     end
+
+    A -->|HTTPS/HTTP| B
+    G -->|Axios JSON| B
+
     style Usuario fill:#f9f,stroke:#333,stroke-width:2px
     style Backend fill:#bbf,stroke:#333,stroke-width:2px
     style Frontend fill:#bfb,stroke:#333,stroke-width:2px
