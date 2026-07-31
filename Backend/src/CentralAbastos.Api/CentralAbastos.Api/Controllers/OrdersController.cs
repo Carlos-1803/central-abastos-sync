@@ -150,59 +150,70 @@ namespace CentralAbastos.Api.Controllers
 
         // POST: api/Orders
         [HttpPost]
-        public async Task<ActionResult<OrderResponseDto>> PostOrder(OrderCreateDto dto)
+public async Task<ActionResult<OrderResponseDto>> PostOrder(OrderCreateDto dto)
+{
+    // 1. Validar que el cliente exista
+    var clientExists = await _context.Clients.AnyAsync(c => c.Id == dto.ClientId);
+    if (!clientExists)
+    {
+        return BadRequest($"El ClientId {dto.ClientId} no existe.");
+    }
+
+    // 2. Validar que el usuario que crea la orden exista en la tabla Users
+    var userExists = await _context.Users.AnyAsync(u => u.Id == dto.CreatedByUserId);
+    if (!userExists)
+    {
+        return BadRequest($"El CreatedByUserId {dto.CreatedByUserId} no existe en la base de datos.");
+    }
+
+    // 3. Validar productos
+    if (dto.Items != null)
+    {
+        foreach (var itemDto in dto.Items)
         {
-            var clientExists = await _context.Clients.AnyAsync(c => c.Id == dto.ClientId);
-            if (!clientExists)
+            var productExists = await _context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
+            if (!productExists)
             {
-                return BadRequest($"El ClientId {dto.ClientId} no existe.");
+                return BadRequest($"El ProductId {itemDto.ProductId} no existe.");
             }
+        }
+    }
 
-            if (dto.Items != null)
-            {
-                foreach (var itemDto in dto.Items)
-                {
-                    var productExists = await _context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
-                    if (!productExists)
-                    {
-                        return BadRequest($"El ProductId {itemDto.ProductId} no existe.");
-                    }
-                }
-            }
+    // 4. Instanciar la Orden asignando CreatedByUserId
+    var order = new Order
+    {
+        ClientId = dto.ClientId,
+        CreatedByUserId = dto.CreatedByUserId, // <-- Mapeo clave para evitar el error de FK
+        DeliveryAddress = dto.DeliveryAddress,
+        DeliveryLatitude = dto.DeliveryLatitude,
+        DeliveryLongitude = dto.DeliveryLongitude,
+        OrderDate = DateTime.UtcNow,
+        Status = "Pending",
+        Items = new List<OrderItem>()
+    };
 
-            var order = new Order
+    if (dto.Items != null)
+    {
+        foreach (var itemDto in dto.Items)
+        {
+            var orderItem = new OrderItem
             {
-                ClientId = dto.ClientId,
-                DeliveryAddress = dto.DeliveryAddress,
-                DeliveryLatitude = dto.DeliveryLatitude,
-                DeliveryLongitude = dto.DeliveryLongitude,
-                OrderDate = DateTime.UtcNow,
-                Status = "Pending",
-                Items = new List<OrderItem>()
+                ProductId = itemDto.ProductId,
+                Quantity = itemDto.Quantity,
+                UnitPrice = itemDto.UnitPrice
             };
 
-            if (dto.Items != null)
-            {
-                foreach (var itemDto in dto.Items)
-                {
-                    var orderItem = new OrderItem
-                    {
-                        ProductId = itemDto.ProductId,
-                        Quantity = itemDto.Quantity,
-                        UnitPrice = itemDto.UnitPrice
-                    };
-
-                    order.Items.Add(orderItem);
-                }
-            }
-
-            order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
-
-            _context.Orders.Add(order);
-            await _context.SaveChangesAsync();
-
-            return await GetOrder(order.Id);
+            order.Items.Add(orderItem);
         }
+    }
+
+    order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
+
+    _context.Orders.Add(order);
+    await _context.SaveChangesAsync();
+
+    return await GetOrder(order.Id);
+}
 
         // DELETE: api/Orders/5
         [HttpDelete("{id}")]
@@ -257,6 +268,19 @@ namespace CentralAbastos.Api.Controllers
 
             return Ok(orders);
         }
+        // PUT: api/Orders/1/assign-truck
+[HttpPut("{id}/assign-truck")]
+public async Task<IActionResult> AssignTruckToOrder(int id, [FromQuery] int truckId)
+{
+    var order = await _context.Orders.FindAsync(id);
+    if (order == null) return NotFound("Orden no encontrada.");
+
+    order.AssignedTruckId = truckId;
+    order.Status = "Out for Delivery"; // <-- Importante: debe ser "Shipped" u "Out for Delivery"
+
+    await _context.SaveChangesAsync();
+    return NoContent();
+}
 
         private bool OrderExists(int id)
         {

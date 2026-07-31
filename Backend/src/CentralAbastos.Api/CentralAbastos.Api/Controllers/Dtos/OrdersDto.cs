@@ -31,6 +31,10 @@ namespace CentralAbastos.Api.Controllers.Dtos
         [Required]
         public int ClientId { get; set; }
 
+        // Campo para vincular el usuario que genera la orden
+        [Required]
+        public int CreatedByUserId { get; set; }
+
         [Required]
         [StringLength(200)]
         public string DeliveryAddress { get; set; }
