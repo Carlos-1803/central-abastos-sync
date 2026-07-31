@@ -12,9 +12,8 @@ export default function Users() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    role: 'LOGISTICS', // ADMIN, LOGISTICS, DRIVER, CLIENT
+    username: '',
+    role: 'LOGISTICS', // ADMIN, LOGISTICS, DRIVER, LEVANTA_PEDIDOS
     status: 'ACTIVE',   // ACTIVE, INACTIVE
     password: '',
   });
@@ -31,14 +30,8 @@ export default function Users() {
       setUsers(res.data || []);
     } catch (err) {
       console.error('Error al cargar usuarios:', err);
-      // Datos de prueba en caso de contingencia
-      setUsers([
-        { id: 1, name: 'Admin Sistema', email: 'admin@central.com', role: 'ADMIN', status: 'ACTIVE' },
-        { id: 2, name: 'Roberto Gómez', email: 'roberto.gomez@central.com', role: 'DRIVER', status: 'ACTIVE' },
-        { id: 3, name: 'Carlos Pech', email: 'carlos.pech@central.com', role: 'DRIVER', status: 'ACTIVE' },
-        { id: 4, name: 'Valeria Méndez', email: 'v.mendez@central.com', role: 'LOGISTICS', status: 'ACTIVE' },
-        { id: 5, name: 'Operador Inactivo', email: 'desactivado@central.com', role: 'LOGISTICS', status: 'INACTIVE' },
-      ]);
+      setError('No se pudo conectar con el servidor para cargar los usuarios.');
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -47,8 +40,7 @@ export default function Users() {
   const handleOpenCreateModal = () => {
     setEditingUser(null);
     setFormData({
-      name: '',
-      email: '',
+      username: '',
       role: 'LOGISTICS',
       status: 'ACTIVE',
       password: '',
@@ -59,9 +51,8 @@ export default function Users() {
   const handleOpenEditModal = (user) => {
     setEditingUser(user);
     setFormData({
-      name: user.name || '',
-      email: user.email || '',
-      role: user.role || 'LOGISTICS',
+      username: user.username || '',
+      role: user.roleName || 'LOGISTICS',
       status: user.status || 'ACTIVE',
       password: '', // Dejar en blanco si no se va a actualizar la clave
     });
@@ -71,48 +62,57 @@ export default function Users() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Mapeo del nombre del rol a ID numérico para tu API de .NET
+      // (Ajusta el número '4' si en tu base de datos 'Levanta Pedidos' tiene otro ID)
+      const roleMapping = {
+        'ADMIN': 1,
+        'LOGISTICS': 2,
+        'DRIVER': 3,
+        'LEVANTA_PEDIDOS': 4,
+      };
+
       const payload = {
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        status: formData.status,
+        username: formData.username,
+        roleId: roleMapping[formData.role] || 2,
       };
 
       if (formData.password) {
         payload.password = formData.password;
+        payload.newPassword = formData.password;
       }
 
       if (editingUser) {
-        await api.put(`/users/${editingUser.id}`, payload).catch(() => null);
+        const res = await api.put(`/users/${editingUser.id || editingUser.Id}`, payload);
         setUsers((prev) =>
-          prev.map((u) => (u.id === editingUser.id ? { ...u, ...payload } : u))
+          prev.map((u) => (u.id === editingUser.id || u.Id === editingUser.Id ? { ...u, ...res.data } : u))
         );
       } else {
-        const res = await api.post('/users', payload).catch(() => null);
-        const newUser = res?.data || { id: Date.now(), ...payload };
+        const res = await api.post('/users', payload);
+        const newUser = res.data;
         setUsers((prev) => [newUser, ...prev]);
       }
 
       setIsModalOpen(false);
+      fetchUsers();
     } catch (err) {
-      console.error(err);
-      setError('Error al guardar el usuario.');
+      console.error('Error detallado al guardar:', err.response?.data || err.message);
+      setError(err.response?.data?.message || 'Error al guardar el usuario en el servidor.');
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar este usuario?')) return;
     try {
-      await api.delete(`/users/${id}`).catch(() => null);
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+      await api.delete(`/users/${id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== id && u.Id !== id));
     } catch (err) {
       console.error(err);
-      setError('No se pudo eliminar el usuario.');
+      setError('No se pudo eliminar el usuario en el servidor.');
     }
   };
 
-  const getRoleBadge = (role) => {
-    switch (role) {
+  const getRoleBadge = (roleName) => {
+    switch (roleName?.toUpperCase()) {
       case 'ADMIN':
         return (
           <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-950/80 text-purple-400 border border-purple-800/60 uppercase">
@@ -131,20 +131,27 @@ export default function Users() {
             📦 Logística
           </span>
         );
+      case 'LEVANTA_PEDIDOS':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 uppercase">
+            📝 Levanta Pedidos
+          </span>
+        );
       default:
         return (
           <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 uppercase">
-            👤 Usuario
+            👤 {roleName || 'Usuario'}
           </span>
         );
     }
   };
 
   const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name?.toLowerCase().includes(search.toLowerCase()) ||
-      u.email?.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
+    const username = u.username || u.name || '';
+    const roleName = u.roleName || u.role || '';
+    
+    const matchesSearch = username.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === 'ALL' || roleName.toUpperCase() === roleFilter;
     return matchesSearch && matchesRole;
   });
 
@@ -185,7 +192,7 @@ export default function Users() {
           <span className="absolute inset-y-0 left-3 flex items-center text-slate-500 text-xs">🔍</span>
           <input
             type="text"
-            placeholder="Buscar por nombre o correo..."
+            placeholder="Buscar por nombre de usuario..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/80 transition-colors"
@@ -198,6 +205,7 @@ export default function Users() {
             { id: 'ADMIN', label: 'Admins' },
             { id: 'LOGISTICS', label: 'Logística' },
             { id: 'DRIVER', label: 'Choferes' },
+            { id: 'LEVANTA_PEDIDOS', label: 'Levanta Pedidos' },
           ].map((rf) => (
             <button
               key={rf.id}
@@ -221,7 +229,6 @@ export default function Users() {
             <thead>
               <tr className="bg-slate-950/80 border-b border-slate-800 text-slate-400 uppercase font-bold tracking-wider">
                 <th className="py-3.5 px-4">Usuario</th>
-                <th className="py-3.5 px-4">Correo Electrónico</th>
                 <th className="py-3.5 px-4">Rol</th>
                 <th className="py-3.5 px-4">Estatus</th>
                 <th className="py-3.5 px-4 text-right">Acciones</th>
@@ -231,58 +238,64 @@ export default function Users() {
             <tbody className="divide-y divide-slate-800/60 text-slate-200">
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="py-12 text-center text-slate-500 animate-pulse">
+                  <td colSpan="4" className="py-12 text-center text-slate-500 animate-pulse">
                     Cargando usuarios del sistema...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="py-12 text-center text-slate-500">
+                  <td colSpan="4" className="py-12 text-center text-slate-500">
                     No se encontraron usuarios coincidentes.
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-white flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-black text-xs">
-                        {u.name?.charAt(0).toUpperCase()}
-                      </div>
-                      {u.name}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-400 font-mono">{u.email}</td>
-                    <td className="py-3.5 px-4">{getRoleBadge(u.role)}</td>
-                    <td className="py-3.5 px-4">
-                      {u.status === 'ACTIVE' ? (
-                        <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold uppercase">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Activo
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[10px] text-rose-400 font-bold uppercase">
-                          <span className="h-1.5 w-1.5 rounded-full bg-rose-400"></span> Inactivo
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleOpenEditModal(u)}
-                          title="Editar Usuario"
-                          className="p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => handleDelete(u.id)}
-                          title="Eliminar Usuario"
-                          className="p-1.5 bg-slate-950 hover:bg-rose-950/60 text-rose-400 border border-slate-800 rounded-lg text-xs"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredUsers.map((u) => {
+                  const userId = u.id || u.Id;
+                  const username = u.username || u.name;
+                  const roleName = u.roleName || u.role;
+                  const status = u.status || 'ACTIVE';
+
+                  return (
+                    <tr key={userId} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-white flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-black text-xs">
+                          {username?.charAt(0).toUpperCase()}
+                        </div>
+                        {username}
+                      </td>
+                      <td className="py-3.5 px-4">{getRoleBadge(roleName)}</td>
+                      <td className="py-3.5 px-4">
+                        {status === 'ACTIVE' ? (
+                          <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold uppercase">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Activo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[10px] text-rose-400 font-bold uppercase">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-400"></span> Inactivo
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleOpenEditModal(u)}
+                            title="Editar Usuario"
+                            className="p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDelete(userId)}
+                            title="Eliminar Usuario"
+                            className="p-1.5 bg-slate-950 hover:bg-rose-950/60 text-rose-400 border border-slate-800 rounded-lg text-xs"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -303,29 +316,15 @@ export default function Users() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                  Nombre Completo
+                  Nombre de Usuario
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ej. Juan Pérez"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ej. juanPerez"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                  Correo Electrónico
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="ejemplo@central.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
                 />
               </div>
 
@@ -356,6 +355,7 @@ export default function Users() {
                     <option value="ADMIN">Administrador</option>
                     <option value="LOGISTICS">Logística</option>
                     <option value="DRIVER">Chofer</option>
+                    <option value="LEVANTA_PEDIDOS">Levanta Pedidos</option>
                   </select>
                 </div>
 
