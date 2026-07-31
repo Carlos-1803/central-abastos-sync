@@ -24,7 +24,7 @@ Sistema de gestión logística para una central de abastos (mercado mayorista). 
 
 ---
 
-## Metodología de Desarrollo (20 pts)
+## Metodología de Desarrollo 
 
 El proyecto sigue una metodología híbrida basada en **GitHub Flow** con elementos de **Scrum** para la gestión de tareas.
 
@@ -103,22 +103,35 @@ flowchart LR
 ### Diagrama de componentes (C4 Container)
 ```mermaid
 graph TD
-    subgraph Frontend[Cliente (Navegador)]
+    subgraph Frontend["Cliente (Navegador)"]
         direction TB
-        UI[Interfaz de Usuario<br/>React + Vite] -->|REST/JSON| API[API Gateway]
+        UI["Interfaz de Usuario<br/>React + Vite"]
     end
-    subgraph Backend[Servidor de Aplicaciones]
+
+    subgraph Backend["Servidor Web API"]
         direction TB
-        API[API REST<br/>.NET 8 Web API] --> Orders[Gestión de Pedidos]
-        API --> Inventory[Gestión de Inventario]
-        API --> Fleet[Gestión de Flota]
-        API --> Users[Gestión de Usuarios y Roles]  %% actualmente sin auth
-        API --> DB[(MySQL<br/>central_abastos)]
-        Orders --> DB
-        Inventory --> DB
-        Fleet --> DB
-        Users --> DB
+        API["API REST<br/>.NET 8 Web API"]
+        Orders["Gestión de Pedidos"]
+        Inventory["Gestión de Inventario"]
+        Fleet["Gestión de Flota"]
+        Users["Gestión de Usuarios y Roles"]
+
+        API --> Orders
+        API --> Inventory
+        API --> Fleet
+        API --> Users
     end
+
+    subgraph Storage["Almacenamiento"]
+        DB[("MySQL<br/>central_abastos")]
+    end
+
+    UI -->|REST / JSON| API
+    Orders --> DB
+    Inventory --> DB
+    Fleet --> DB
+    Users --> DB
+
     style Frontend fill:#dfd,stroke:#333,stroke-width:2px
     style Backend fill:#ddf,stroke:#333,stroke-width:2px
 ```
@@ -126,17 +139,18 @@ graph TD
 ### Flujo de comunicación cliente‑servidor
 ```mermaid
 sequenceDiagram
-    participant Usuario as Usuario (Navegador)
-    participant Frontend as Frontend (React)
-    endpoint Backend as Backend (.NET API)
+    autonumber
+    actor Usuario as Usuario (Navegador)
+    participant Frontend as Frontend (React/Vite)
+    participant Backend as Backend (.NET 8 API)
     participant DB as MySQL
 
     Usuario->>Frontend: Carga SPA (JS, CSS, assets)
-    Frontend->>Backend: GET /api/orders (sin auth, CORS permitido)
-    Backend->>DB: SELECT orders + items
-    DB-->>Backend: Data
-    Backend-->>Frontend: JSON (ordenes)
-    Frontend->>Usuario: Renderizar lista de pedidos
+    Frontend->>Backend: GET /api/Orders (CORS permitido)
+    Backend->>DB: SELECT Orders + Items
+    DB-->>Backend: Data de órdenes y productos
+    Backend-->>Frontend: HTTP 200 OK (JSON DTOs)
+    Frontend-->>Usuario: Renderiza lista de pedidos
 ```
 
 ### Responsabilidades de cada capa
@@ -231,7 +245,7 @@ Los commits deben ser **atomicos** y descriptivos. El título no debe superar 72
 
 ---
 
-## Consistencia entre Documentación y Proyecto (20 pts)
+## Consistencia entre Documentación y Proyecto 
 
 ### Estructura de carpetas real
 ```bash
