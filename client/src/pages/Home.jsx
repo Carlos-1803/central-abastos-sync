@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import axiosClient from '../services/axiosClient'; // <-- Aquí está la importación correcta
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -21,18 +21,16 @@ export default function Home() {
       setLoading(true);
       setError(null);
 
-      // Fetch de órdenes de la API
-      const ordersResponse = await api.get('/orders');
+      // Usando axiosClient en lugar de api
+      const ordersResponse = await axiosClient.get('/orders');
       const orders = ordersResponse.data || [];
 
-      // 1. Obtener órdenes del día de hoy
       const today = new Date().toDateString();
       const todayOrdersList = orders.filter((o) => {
         if (!o.orderDate) return false;
         return new Date(o.orderDate).toDateString() === today;
       });
 
-      // 2. Calcular ingresos totales procesados
       const revenue = orders.reduce((acc, order) => {
         if (!order.items || order.items.length === 0) return acc;
         const orderTotal = order.items.reduce(
@@ -42,28 +40,24 @@ export default function Home() {
         return acc + orderTotal;
       }, 0);
 
-      // 3. Conteo de órdenes pendientes
       const pendingCount = orders.filter(
         (o) => o.status === 'Pending' || o.status === 'Pendiente'
       ).length;
 
-      // 4. Intentar obtener camiones/flota activa (si existe el endpoint /trucks o /fleet)
       let activeTrucksCount = 0;
       try {
-        const trucksResponse = await api.get('/trucks').catch(() => api.get('/fleet'));
+        const trucksResponse = await axiosClient.get('/trucks').catch(() => axiosClient.get('/fleet'));
         if (trucksResponse?.data) {
           activeTrucksCount = trucksResponse.data.filter(
             (t) => t.status === 'In Transit' || t.status === 'Active' || t.status === 'En Ruta'
           ).length;
         }
       } catch {
-        // Fallback: contar órdenes en ruta como camiones activos si no hay endpoint de flota
         activeTrucksCount = orders.filter(
           (o) => o.status === 'Out for Delivery' || o.status === 'En Ruta'
         ).length;
       }
 
-      // Actualizar estado de las tarjetas
       setStats({
         todayOrders: todayOrdersList.length,
         totalRevenue: revenue,
@@ -71,7 +65,6 @@ export default function Home() {
         pendingOrders: pendingCount,
       });
 
-      // 5. Últimas 5 órdenes para la tabla
       const sortedOrders = [...orders].sort(
         (a, b) => new Date(b.orderDate || 0) - new Date(a.orderDate || 0)
       );

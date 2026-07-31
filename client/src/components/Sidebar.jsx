@@ -64,9 +64,11 @@ export default function Sidebar() {
   ];
 
   // Filtrar los elementos según el rol del usuario logueado
-  const visibleMenuItems = menuItems.filter((item) =>
-    item.roles.includes(user?.role)
-  );
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (!user?.role) return false;
+    const userRole = user.role.toUpperCase();
+    return item.roles.includes(userRole);
+  });
 
   return (
     <aside className="w-64 bg-slate-900 border-r border-slate-800 text-slate-200 h-screen flex flex-col justify-between font-mono p-4 select-none">
