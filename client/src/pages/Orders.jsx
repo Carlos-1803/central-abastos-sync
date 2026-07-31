@@ -1,402 +1,353 @@
-import { useState, useEffect } from 'react';
-import { api } from '../services/api';
-import {
-  Search,
-  MapPin,
-  ChevronDown,
-  Mail,
-  Phone,
-  User,
-  Printer,
-  ClipboardList
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import api from '../services/api';
+import RouteModal from '../components/RouteModal';
 
-const statusOrder = [
-  'Pending',
-  'Confirmed',
-  'Shipped',
-  'Out for Delivery',
-  'Delivered',
-  'Cancelled'
-];
-
-const statusConfig = {
-  Pending: { label: 'Abierto', color: 'bg-yellow-100 text-yellow-800' },
-  Confirmed: { label: 'En preparación', color: 'bg-orange-100 text-orange-800' },
-  Shipped: { label: 'Listo', color: 'bg-blue-100 text-blue-800' },
-  'Out for Delivery': { label: 'En camino', color: 'bg-purple-100 text-purple-800' },
-  Delivered: { label: 'Finalizado', color: 'bg-green-100 text-green-800' },
-  Cancelled: { label: 'Cancelado', color: 'bg-gray-100 text-gray-800' }
-};
-
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  const options = { hour: '2-digit', minute: '2-digit' };
-  return new Date(dateString).toLocaleTimeString(undefined, options);
-};
-
-const Orders = () => {
+export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [openSections, setOpenSections] = useState(new Set());
+  const [filterStatus, setFilterStatus] = useState('ALL');
 
-  const toggleSection = (status) => {
-    const newSet = new Set(openSections);
-    if (newSet.has(status)) {
-      newSet.delete(status);
-    } else {
-      newSet.add(status);
+  // Estados para modales
+  const [selectedRoute, setSelectedRoute] = useState(null);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get('/orders');
+      setOrders(response.data);
+    } catch (err) {
+      console.error('Error al cargar órdenes:', err);
+      setError('No se pudo sincronizar el historial de órdenes con el servidor.');
+    } finally {
+      setLoading(false);
     }
-    setOpenSections(newSet);
   };
 
-  const isSectionOpen = (status) => openSections.has(status);
-
-  // Fetch orders
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get('/orders');
-        setOrders(Array.isArray(res.data) ? res.data : []);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to fetch orders:', err);
-        setError('No se pudieron cargar las órdenes');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchOrders();
   }, []);
 
-  // Filter and search
-  const filteredOrders = orders.filter(
-    (order) =>
-      order.id?.toString().includes(searchTerm) ||
-      order.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Group by status
-  const grouped = {};
-  filteredOrders.forEach((order) => {
-    const status = order.status || 'Pending';
-    if (!grouped[status]) {
-      grouped[status] = [];
-    }
-    grouped[status].push(order);
-  });
-
-  // Render status sections
-  const renderStatusSections = () => {
-    return statusOrder.map((status) => {
-      const items = grouped[status] || [];
-      const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
-      const isOpen = isSectionOpen(status);
-      return (
-        <div key={status} className="w-full">
-          <div
-            onClick={() => toggleSection(status)}
-            className="flex w-full items-center justify-between bg-gray-50 p-3 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}
-              >
-                {items.length}
-              </span>
-              <span className="text-sm font-medium">{config.label}</span>
-            </div>
-            <ChevronDown
-              className={`h-4 w-4 text-gray-500 transform duration-200 ${
-                isOpen ? '-rotate-180' : ''
-              }`}
-            />
-          </div>
-          {isOpen && (
-            <div className="mt-2 space-y-2">
-              {items.length === 0 ? (
-                <p className="text-sm text-gray-500 px-4 py-2">No hay órdenes en este estado</p>
-              ) : (
-                items.map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md cursor-pointer transition-shadow"
-                    onClick={() => {
-                      if (!order.items || order.items.length === 0) {
-                        api
-                          .get(`/orders/${order.id}`)
-                          .then((res) => {
-                            setSelectedOrder(res.data);
-                          })
-                          .catch((err) => console.error(err));
-                      } else {
-                        setSelectedOrder(order);
-                      }
-                    }}
-                  >
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${config.color}`}
-                    >
-                      {config.label}
-                    </span>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">Orden #{order.id}</p>
-                      <p className="text-sm text-gray-500">
-                        {order.customerName || 'Cliente desconocido'}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {formatDate(order.date)}
-                      </p>
-                      <p className="text-sm font-semibold">
-                        Total: ${Number(order.totalAmount || 0).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      );
+  const handleOpenRoute = (e, order) => {
+    e.stopPropagation(); // Evita abrir el modal de detalles
+    setSelectedRoute({
+      orderId: order.id,
+      origin: [19.3712, -99.0906],
+      destination: [
+        order.deliveryLatitude || 19.4326,
+        order.deliveryLongitude || -99.1332
+      ]
     });
   };
 
-  // Order detail panel
-  const renderOrderDetail = () => {
-    if (!selectedOrder) {
-      return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 text-center text-gray-500">
-          Selecciona una orden para ver los detalles.
-        </div>
-      );
-    }
-
-    const config = statusConfig[selectedOrder.status] || statusConfig.Pending;
-    const items = selectedOrder.items || [];
-    const subtotal = items.reduce(
-      (sum, item) => sum + (item.unitPrice * item.quantity),
-      0
-    );
-
-    return (
-      <div className="w-full space-y-4">
-        <div className="flex flex-col sm:flex-row gap-6">
-          {/* Left: Order Info & Actions */}
-          <div className="w-full flex-1 space-y-4">
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-                    {config.label}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => alert('Marcar como listo (funcionalidad pendiente)')}
-                    className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-800 rounded hover:bg-green-200 transition-colors"
-                  >
-                    Listo
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (window.confirm('¿Está seguro de cancelar esta orden?')) {
-                        alert('Cancelar orden (funcionalidad pendiente)');
-                      }
-                    }}
-                    className="px-3 py-1.5 text-xs font-medium bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-
-              {/* Customer & Contact */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  <div>
-                    <p className="text-sm font-medium">Cliente: {selectedOrder.customerName || 'N/A'}</p>
-                    <p className="text-sm text-gray-500">Tel: {selectedOrder.customerPhone || 'No proporcionado'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <MapPin className="h-4 w-4 text-gray-500" />
-                  <div>
-                    <p className="text-sm font-medium">Dirección de entrega</p>
-                    <p className="text-sm text-gray-500 line-clamp-2">
-                      {selectedOrder.deliveryAddress || 'Dirección no disponible'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <div>
-                    <p className="text-sm font-medium">Correo</p>
-                    <p className="text-sm text-gray-500">{selectedOrder.customerEmail || 'No proporcionado'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Items List */}
-              <div className="border-t border-gray-200 pt-4 mt-4">
-                <p className="mb-2 font-semibold text-sm">Productos</p>
-                <div className="space-y-2">
-                  {items.length > 0 ? (
-                    items.map((item, index) => (
-                      <div key={index} className="flex justify-between py-2 border-t border-gray-100 first:border-t-0">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{item.productName || 'Producto'}</p>
-                          <p className="text-xs text-gray-500">Cantidad: {item.quantity}</p>
-                        </div>
-                        <div className="text-right text-sm font-medium">
-                          ${(item.unitPrice * item.quantity).toFixed(2)}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 py-2">No hay artículos en esta orden</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Totals */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="flex justify-between text-sm font-medium">
-                  <span>Subtotal:</span>
-                  <span>${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold mt-1">
-                  <span>Total:</span>
-                  <span>${Number(selectedOrder.totalAmount || 0).toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            {selectedOrder.notes && (
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <p className="font-semibold mb-2 text-sm">Notas</p>
-                <p className="text-sm text-gray-600 whitespace-pre-line">{selectedOrder.notes}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Right Summary Panel */}
-          <div className="w-full sm:w-64 bg-white rounded-lg border border-gray-200 p-4 space-y-4 h-fit">
-            <div className="space-y-2">
-              <p className="font-semibold text-sm">Resumen</p>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between items-center">
-                  <span>Estado:</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-                    {config.label}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Artículos:</span>
-                  <span>{items.length}</span>
-                </div>
-              </div>
-            </div>
-            <div className="border-t pt-4">
-              <p className="font-semibold mb-2 text-sm">Acciones rápidas</p>
-              <div className="space-y-2">
-                <button
-                  onClick={() => window.print()}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 rounded border border-blue-200 transition-colors"
-                >
-                  <Printer className="h-4 w-4" />
-                  <span>Imprimir ticket</span>
-                </button>
-                <button
-                  onClick={() => alert('Notificar al cliente (pendiente)')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium bg-green-50 text-green-700 hover:bg-green-100 rounded border border-green-200 transition-colors"
-                >
-                  <Phone className="h-4 w-4" />
-                  <span>Notificar cliente</span>
-                </button>
-                <button
-                  onClick={() => alert('Asignar conductor (pendiente)')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded border border-indigo-200 transition-colors"
-                >
-                  <User className="h-4 w-4" />
-                  <span>Asignar conductor</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Back button */}
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={() => setSelectedOrder(null)}
-            className="px-4 py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-          >
-            ← Volver a la lista
-          </button>
-        </div>
-      </div>
-    );
+  const handleOpenDetails = (order) => {
+    setSelectedOrderDetails(order);
   };
 
-  if (loading) return <div className="flex h-full items-center justify-center p-8">Cargando...</div>;
-  if (error)
-    return (
-      <div className="flex h-full items-center justify-center text-red-500 p-8">
-        {error}
-      </div>
-    );
+  const handleDeleteOrder = async (e, orderId) => {
+    if (e) e.stopPropagation(); // Evita abrir el modal si el clic viene de la tabla
+
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la orden #${orderId.toString().padStart(4, '0')}?`)) {
+      return;
+    }
+
+    try {
+      setDeletingId(orderId);
+      await api.delete(`/orders/${orderId}`);
+      
+      // Actualizamos el estado local removiendo la orden eliminada
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      
+      // Si el modal de detalles de esa orden estaba abierto, lo cerramos
+      if (selectedOrderDetails?.id === orderId) {
+        setSelectedOrderDetails(null);
+      }
+    } catch (err) {
+      console.error('Error al eliminar la orden:', err);
+      alert('Ocurrió un error al intentar eliminar la orden del servidor.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const filteredOrders = orders.filter((order) => {
+    if (filterStatus === 'ALL') return true;
+    return order.status === filterStatus;
+  });
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'Out for Delivery':
+      case 'En Ruta':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-amber-950/80 text-amber-400 border border-amber-800/50">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            EN RUTA
+          </span>
+        );
+      case 'Delivered':
+      case 'Entregado':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800/50">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+            ENTREGADO
+          </span>
+        );
+      case 'Pending':
+      case 'Pendiente':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-cyan-950/80 text-cyan-400 border border-cyan-800/50">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400"></span>
+            PENDIENTE
+          </span>
+        );
+    }
+  };
+
+  const calculateTotal = (items) => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((acc, item) => acc + (item.unitPrice || item.price || 0) * (item.quantity || 1), 0);
+  };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] p-6 bg-gray-50">
-      {/* Encabezado */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <ClipboardList className="h-6 w-6 text-blue-600" />
-          Gestión de Órdenes
-        </h1>
-      </div>
-
-      {/* Search bar */}
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative flex-1 min-w-0">
-          <Search className="h-4 w-4 text-gray-400 absolute left-3 top-3" />
-          <input
-            type="text"
-            placeholder="Buscar por ID o cliente..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-        </div>
-        <button
-          onClick={() => setSearchTerm('')}
-          className="px-3 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded transition-colors text-sm font-medium disabled:opacity-50"
-          disabled={!searchTerm}
-        >
-          Limpiar
-        </button>
-      </div>
-
-      {/* Main content: two columns (list + detail) */}
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        {/* Left: Status sections & orders list */}
-        <div className="flex-1 w-full space-y-4">
-          {renderStatusSections()}
+    <div className="p-6 max-w-7xl mx-auto space-y-6 text-slate-100">
+      {/* Header Industrial */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <h1 className="text-2xl font-black tracking-wide text-white uppercase font-mono">
+              Gestión de Órdenes & Pedidos
+            </h1>
+          </div>
+          <p className="text-xs text-slate-400 mt-1 font-mono">
+            Haz clic en una orden para ver detalles o elimina despachos no requeridos.
+          </p>
         </div>
 
-        {/* Right: Order detail panel */}
-        <div className="w-full md:w-1/2 min-w-0">
-          {renderOrderDetail()}
+        {/* Filtros */}
+        <div className="flex gap-2 font-mono text-xs">
+          {['ALL', 'Pending', 'Out for Delivery', 'Delivered'].map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilterStatus(status)}
+              className={`px-3 py-1.5 rounded-lg border transition-all ${
+                filterStatus === status
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 font-bold'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              {status === 'ALL' ? 'TODAS' : status.toUpperCase()}
+            </button>
+          ))}
         </div>
       </div>
+
+      {/* Tabla de Órdenes */}
+      {loading ? (
+        <div className="text-center py-16 text-slate-500 font-mono">Cargando órdenes...</div>
+      ) : error ? (
+        <div className="bg-rose-950/30 text-rose-400 border border-rose-900/50 p-4 rounded-xl text-sm font-mono">
+          {error}
+        </div>
+      ) : (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-2xl backdrop-blur-md">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-950/80 text-slate-400 uppercase text-[11px] font-mono tracking-wider border-b border-slate-800">
+                <tr>
+                  <th className="px-6 py-3.5">ID Orden</th>
+                  <th className="px-6 py-3.5">Cliente</th>
+                  <th className="px-6 py-3.5">Atendido Por</th>
+                  <th className="px-6 py-3.5">Fecha</th>
+                  <th className="px-6 py-3.5">Estatus</th>
+                  <th className="px-6 py-3.5 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-10 text-center text-slate-500 font-mono">
+                      No hay órdenes registradas.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOrders.map((order) => (
+                    <tr
+                      key={order.id}
+                      onClick={() => handleOpenDetails(order)}
+                      className="hover:bg-slate-800/60 cursor-pointer transition-colors"
+                    >
+                      <td className="px-6 py-4 font-mono font-bold text-emerald-400">
+                        #{order.id.toString().padStart(4, '0')}
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-white">
+                        {order.customerName || order.client?.name || 'Cliente General'}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-mono text-slate-400">
+                        {order.createdByName || order.user?.fullName || 'Sistema Admin'}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-mono text-slate-400">
+                        {order.orderDate
+                          ? new Date(order.orderDate).toLocaleDateString('es-MX', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })
+                          : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={(e) => handleOpenRoute(e, order)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-400 border border-emerald-800/60 rounded-lg font-mono text-xs transition-colors"
+                          >
+                            🗺️ Ruta
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteOrder(e, order.id)}
+                            disabled={deletingId === order.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-400 border border-rose-800/60 rounded-lg font-mono text-xs transition-colors disabled:opacity-50"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLES DE LA ORDEN */}
+      {selectedOrderDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 font-mono text-slate-100">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                    DETALLE DE PEDIDO
+                  </span>
+                  <h2 className="text-xl font-bold text-white">
+                    #{selectedOrderDetails.id.toString().padStart(4, '0')}
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Registrado el {new Date(selectedOrderDetails.orderDate || Date.now()).toLocaleString('es-MX')}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedOrderDetails(null)}
+                className="text-slate-400 hover:text-white px-2.5 py-1 bg-slate-800 rounded-lg text-xs"
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+
+            {/* Metadatos (Cliente y Creador) */}
+            <div className="grid grid-cols-2 gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-500 uppercase text-[10px]">Cliente:</span>
+                <p className="font-bold text-white text-sm mt-0.5">
+                  {selectedOrderDetails.customerName || selectedOrderDetails.client?.name || 'Cliente General'}
+                </p>
+                <p className="text-slate-400 text-[11px] mt-1">
+                  📍 {selectedOrderDetails.deliveryAddress || 'Dirección de entrega estándar'}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-slate-500 uppercase text-[10px]">Creado / Atendido por:</span>
+                <p className="font-bold text-cyan-400 text-sm mt-0.5">
+                  👤 {selectedOrderDetails.createdByName || selectedOrderDetails.user?.fullName || 'Administrador Central'}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-slate-500 text-[10px]">Estado:</span>
+                  {getStatusBadge(selectedOrderDetails.status)}
+                </div>
+              </div>
+            </div>
+
+            {/* Desglose de Productos */}
+            <div>
+              <h3 className="text-xs uppercase text-slate-400 font-bold mb-3 tracking-wider">
+                Ítems & Productos Solicitados
+              </h3>
+              <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800 uppercase text-[10px]">
+                    <tr>
+                      <th className="p-3">Producto</th>
+                      <th className="p-3 text-center">Cant.</th>
+                      <th className="p-3 text-right">Precio Unit.</th>
+                      <th className="p-3 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {selectedOrderDetails.items && selectedOrderDetails.items.length > 0 ? (
+                      selectedOrderDetails.items.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-900/40">
+                          <td className="p-3 font-bold text-white">{item.productName || item.product?.name || 'Producto'}</td>
+                          <td className="p-3 text-center font-mono">{item.quantity}</td>
+                          <td className="p-3 text-right font-mono">${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+                          <td className="p-3 text-right font-mono text-emerald-400 font-bold">
+                            ${((item.quantity || 1) * (item.unitPrice || item.price || 0)).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" className="p-4 text-center text-slate-500">
+                          No hay desglose de ítems para esta orden.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer con Total y Botón de Eliminar */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-emerald-950/30 border border-emerald-800/50 p-4 rounded-xl">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDeleteOrder(null, selectedOrderDetails.id)}
+                  disabled={deletingId === selectedOrderDetails.id}
+                  className="px-3 py-2 bg-rose-950 hover:bg-rose-900 text-rose-400 border border-rose-800/80 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                >
+                  🗑️ Eliminar Orden
+                </button>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Total de la Orden:</span>
+                <span className="text-2xl font-black text-emerald-400">
+                  ${calculateTotal(selectedOrderDetails.items).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Flotante de Mapa */}
+      <RouteModal
+        isOpen={!!selectedRoute}
+        onClose={() => setSelectedRoute(null)}
+        orderId={selectedRoute?.orderId}
+        origin={selectedRoute?.origin}
+        destination={selectedRoute?.destination}
+      />
     </div>
   );
-};
-
-export default Orders;
+}
