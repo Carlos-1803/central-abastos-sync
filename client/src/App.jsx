@@ -17,34 +17,35 @@ import Users from './pages/Users';
 export default function App() {
   return (
     <Routes>
+
       {/* Ruta Pública */}
       <Route path="/login" element={<Login />} />
 
       {/* Rutas Protegidas enmarcadas con Layout */}
-      <Route element={<Layout />}>
-        {/* Accesibles para ADMIN, LOGISTICS y DRIVER */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'LOGISTICS', 'DRIVER']} />}>
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/fleet/active" element={<ActiveTrucks />} />
-          <Route path="/fleet/units" element={<ActiveTrucks />} />
-          <Route path="/profile" element={<Profile />} />
-        </Route>
+<Route element={<Layout />}>
+  {/* Accesibles para ADMIN, LOGISTICS y DRIVER */}
+  <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'Admin', 'LOGISTICS', 'DRIVER']} />}>
+    <Route path="/orders" element={<Orders />} />
+    <Route path="/fleet/active" element={<ActiveTrucks />} />
+    <Route path="/fleet/units" element={<ActiveTrucks />} />
+    <Route path="/profile" element={<Profile />} />
+  </Route>
 
         {/* Accesibles solo para ADMIN y LOGISTICS */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'LOGISTICS']} />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/orders/new" element={<CreateOrder />} />
-          <Route path="/orders/create" element={<CreateOrder />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/products" element={<ProductsCatalog />} />
-          <Route path="/inventory" element={<ProductsCatalog />} />
-          <Route path="/fleet" element={<Trucks />} />
-          <Route path="/trucks" element={<Trucks />} />
-        </Route>
+  <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'Admin', 'LOGISTICS']} />}>
+    <Route path="/" element={<Home />} />
+    <Route path="/orders/new" element={<CreateOrder />} />
+    <Route path="/orders/create" element={<CreateOrder />} />
+    <Route path="/clients" element={<Clients />} />
+    <Route path="/products" element={<ProductsCatalog />} />
+    <Route path="/inventory" element={<ProductsCatalog />} />
+    <Route path="/fleet" element={<Trucks />} />
+    <Route path="/trucks" element={<Trucks />} />
+  </Route>
 
         {/* Exclusivo para ADMIN */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-          <Route path="/users" element={<Users />} />
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'Admin']} />}>
+    <Route path="/users" element={<Users />} />
         </Route>
       </Route>
     </Routes>

@@ -1,13 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using CentralAbastos.Api.Models;
 using CentralAbastos.Api.Data;
+using CentralAbastos.Api.Models;
 using CentralAbastos.Api.Controllers.Dtos;
 
 namespace CentralAbastos.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "ADMIN,Admin")] // Solo administradores pueden gestionar empleados
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -17,123 +19,134 @@ namespace CentralAbastos.Api.Controllers
             _context = context;
         }
 
-        // GET: api/Users
-       [HttpGet]
-public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsers()
-{
-    var users = await _context.Users
-        .Include(u => u.Role) // Para obtener el Nombre del Rol
-        .Select(u => new UserResponseDto
+        // GET: api/users (Listar todos los empleados)
+        [HttpGet]
+        public async Task<IActionResult> GetUsers()
         {
-            Id = u.Id,
-            Username = u.Username,
-            RoleId = u.RoleId,
-            RoleName = u.Role != null ? u.Role.Name : string.Empty
-        })
-        .ToListAsync();
+            var users = await _context.Users
+                .Include(u => u.Role)
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Username,
+                    u.RoleId,
+                    RoleName = u.Role.Name
+                })
+                .ToListAsync();
 
-    return Ok(users);
-}
+            return Ok(users);
+        }
 
-        // GET: api/Users/5
+        // GET: api/users/5 (Obtener un empleado por ID)
         [HttpGet("{id}")]
-        public async Task<ActionResult<UserResponseDto>> GetUser(int id)
+        public async Task<IActionResult> GetUserById(int id)
         {
             var user = await _context.Users
                 .Include(u => u.Role)
-                .Where(u => u.Id == id)
-                .Select(u => new UserResponseDto
-                {
-                    Id = u.Id,
-                    Username = u.Username,
-                    RoleId = u.RoleId,
-                    RoleName = u.Role.Name
-                })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(u => u.Id == id);
 
             if (user == null)
             {
-                return NotFound();
+                return NotFound("Usuario no encontrado.");
             }
 
-            return Ok(user);
+            return Ok(new
+            {
+                user.Id,
+                user.Username,
+                user.RoleId,
+                RoleName = user.Role.Name
+            });
         }
 
-        // PUT: api/Users/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutUser(int id, UserUpdateDto dto)
-        {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound("El usuario no existe.");
-            }
-
-            var roleExists = await _context.Roles.AnyAsync(r => r.Id == dto.RoleId);
-            if (!roleExists)
-            {
-                return BadRequest("El RoleId especificado no existe.");
-            }
-
-            user.Username = dto.Username;
-            user.PasswordHash = dto.Password;
-            user.RoleId = dto.RoleId;
-
-            await _context.SaveChangesAsync();
-
-            return NoContent(); // Devuelve 204 No Content cuando la actualización es exitosa
-        }
-
-        // POST: api/Users
+        // POST: api/users (Crear nuevo empleado)
         [HttpPost]
-        public async Task<ActionResult<UserResponseDto>> PostUser(UserCreateDto dto)
+        public async Task<IActionResult> CreateUser(RegisterDto dto)
         {
-            var roleExists = await _context.Roles.AnyAsync(r => r.Id == dto.RoleId);
-            if (!roleExists)
+            if (await _context.Users.AnyAsync(u => u.Username.ToLower() == dto.Username.ToLower()))
             {
-                return BadRequest("El RoleId especificado no existe.");
+                return BadRequest("El nombre de usuario ya existe.");
+            }
+
+            var role = await _context.Roles.FindAsync(dto.RoleId);
+            if (role == null)
+            {
+                return BadRequest("El rol asignado no existe.");
             }
 
             var user = new User
             {
                 Username = dto.Username,
-                PasswordHash = dto.Password,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 RoleId = dto.RoleId
             };
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            var userDto = new UserResponseDto
+            return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, new
             {
-                Id = user.Id,
-                Username = user.Username,
-                RoleId = user.RoleId,
-                RoleName = _context.Roles.FirstOrDefault(r => r.Id == user.RoleId)?.Name ?? string.Empty
-            };
-
-            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, userDto);
+                user.Id,
+                user.Username,
+                user.RoleId,
+                RoleName = role.Name
+            });
         }
 
-        // DELETE: api/Users/5
+        // PUT: api/users/5 (Editar empleado existente)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound("El usuario a editar no existe.");
+            }
+
+            // Validar si cambio el Username y que no choque con otro existente
+            if (!string.Equals(user.Username, dto.Username, StringComparison.OrdinalIgnoreCase))
+            {
+                if (await _context.Users.AnyAsync(u => u.Username.ToLower() == dto.Username.ToLower()))
+                {
+                    return BadRequest("El nuevo nombre de usuario ya está en uso.");
+                }
+                user.Username = dto.Username;
+            }
+
+            // Validar el rol
+            var role = await _context.Roles.FindAsync(dto.RoleId);
+            if (role == null)
+            {
+                return BadRequest("El rol especificado no existe.");
+            }
+            user.RoleId = dto.RoleId;
+
+            // Si se proporciona una contraseña nueva, re-hashearla
+            if (!string.IsNullOrWhiteSpace(dto.NewPassword))
+            {
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            }
+
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"Usuario '{user.Username}' actualizado correctamente." });
+        }
+
+        // DELETE: api/users/5 (Eliminar empleado)
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null)
             {
-                return NotFound();
+                return NotFound("El usuario especificado no existe.");
             }
 
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
 
-            return NoContent();
-        }
-
-        private bool UserExists(int id)
-        {
-            return _context.Users.Any(e => e.Id == id);
+            return Ok(new { message = $"El usuario '{user.Username}' fue eliminado correctamente." });
         }
     }
 }

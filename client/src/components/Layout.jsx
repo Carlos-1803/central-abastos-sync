@@ -1,6 +1,7 @@
 import React from 'react';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import '../index.css'; // optional
+import '../index.css';
 
 const Layout = ({ children }) => {
   return (
@@ -12,7 +13,7 @@ const Layout = ({ children }) => {
       <div className="flex-1 flex flex-col ml-14 bg-slate-950">
         <main className="flex-1 overflow-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            {children}
+            {children || <Outlet />}
           </div>
         </main>
       </div>
