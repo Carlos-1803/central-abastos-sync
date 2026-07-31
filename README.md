@@ -60,8 +60,7 @@ El proyecto sigue una metodología híbrida basada en **GitHub Flow** con elemen
 
 ---
 
-## Arquitectura del Sistema (20 pts)
-
+## Arquitectura del Sistema 
 ### Visión general (C4 Context)
 El sistema sigue una arquitectura de tres capas totalmente desacoplada:
 
@@ -150,7 +149,7 @@ sequenceDiagram
 
 ---
 
-## Stack Tecnológico (15 pts)
+## Stack Tecnológico 
 
 | Tecnología | Versión | Justificación |
 |------------|---------|---------------|
@@ -171,7 +170,7 @@ GitHub Actions| - | CI/CD integrado, ejecuta pruebas de sintaxis y builds en cad
 Linux / CachyOS | - | Sistema operativo ligero y optimizado para rendimiento, ideal para contenedores y despliegues en la nube o bare metal.
 Swagger / OpenAPI | - | Genera documentación interactiva de la API, facilita pruebas y integración con frontend.
 
-## Flujo de Trabajo con Git (25 pts)
+## Flujo de Trabajo con Git 
 
 ### Modelo de ramas
 - **main**: rama de producción, refleja el estado estable desplegado.
@@ -232,7 +231,7 @@ Los commits deben ser **atomicos** y descriptivos. El título no debe superar 72
 
 ---
 
-## Consistencia entre Documentación y Proyecto (20 pts)
+## Consistencia entre Documentación y Proyecto 
 
 ### Estructura de carpetas real
 ```bash
