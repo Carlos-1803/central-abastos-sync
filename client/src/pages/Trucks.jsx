@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { normalizeRole, ROLES } from '../utils/roles';
 
 export default function Trucks() {
   const [trucks, setTrucks] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -15,9 +17,10 @@ export default function Trucks() {
     unitNumber: '',
     plate: '',
     model: '',
-    driverName: '',
+    year: new Date().getFullYear(),
+    driverId: '',
     capacityTons: '',
-    status: 'AVAILABLE', // AVAILABLE, IN_ROUTE, MAINTENANCE
+    status: 'AVAILABLE', // AVAILABLE, MAINTENANCE
   });
 
   useEffect(() => {
@@ -28,18 +31,30 @@ export default function Trucks() {
     try {
       setLoading(true);
       setError(null);
-      // Intenta consultar la API de unidades
-      const response = await api.get('/trucks').catch(() => api.get('/fleet'));
-      setTrucks(response.data || []);
+      const [trucksResponse, usersResponse] = await Promise.all([
+        api.get('/trucks'),
+        api.get('/users'),
+      ]);
+
+      const normalizedTrucks = (trucksResponse.data || []).map((truck) => ({
+        ...truck,
+        unitNumber: truck.unitNumber || `CAM-${String(truck.id).padStart(2, '0')}`,
+        plate: truck.plateNumber || truck.plate || '',
+        capacityTons: Number(truck.capacityKg || 0) / 1000,
+        status: truck.isActive === false ? 'MAINTENANCE' : 'AVAILABLE',
+      }));
+
+      const availableDrivers = (usersResponse.data || []).filter(
+        (user) => normalizeRole(user.roleName || user.role) === ROLES.DRIVER
+      );
+
+      setTrucks(normalizedTrucks);
+      setDrivers(availableDrivers);
     } catch (err) {
       console.error('Error al cargar flotilla:', err);
-      // Datos demo de contingencia
-      setTrucks([
-        { id: 1, unitNumber: 'CAM-01', plate: 'CR-88-290', model: 'Kenworth T370', driverName: 'Roberto Gómez', capacityTons: 12, status: 'IN_ROUTE' },
-        { id: 2, unitNumber: 'CAM-02', plate: 'CR-91-102', model: 'Isuzu Forward 1100', driverName: 'Carlos Pech', capacityTons: 8, status: 'AVAILABLE' },
-        { id: 3, unitNumber: 'CAM-03', plate: 'CR-45-780', model: 'Freightliner M2', driverName: 'Manuel Uc', capacityTons: 15, status: 'MAINTENANCE' },
-        { id: 4, unitNumber: 'CAM-04', plate: 'CR-33-019', model: 'Hino Series 500', driverName: 'Jorge Canul', capacityTons: 10, status: 'AVAILABLE' },
-      ]);
+      setTrucks([]);
+      setDrivers([]);
+      setError(err.response?.data?.message || 'No se pudo cargar la flotilla.');
     } finally {
       setLoading(false);
     }
@@ -51,7 +66,8 @@ export default function Trucks() {
       unitNumber: '',
       plate: '',
       model: '',
-      driverName: '',
+      year: new Date().getFullYear(),
+      driverId: '',
       capacityTons: '',
       status: 'AVAILABLE',
     });
@@ -64,7 +80,8 @@ export default function Trucks() {
       unitNumber: truck.unitNumber || '',
       plate: truck.plate || '',
       model: truck.model || '',
-      driverName: truck.driverName || '',
+      year: truck.year || new Date().getFullYear(),
+      driverId: truck.driverId || '',
       capacityTons: truck.capacityTons || '',
       status: truck.status || 'AVAILABLE',
     });
@@ -75,22 +92,32 @@ export default function Trucks() {
     e.preventDefault();
     try {
       const payload = {
+        plateNumber: formData.plate.trim().toUpperCase(),
+        model: formData.model.trim(),
+        year: Number(formData.year),
+        capacityKg: (parseFloat(formData.capacityTons) || 0) * 1000,
+        isActive: formData.status !== 'MAINTENANCE',
+        driverId: Number(formData.driverId),
+      };
+
+      const selectedDriver = drivers.find((driver) => driver.id === Number(formData.driverId));
+      const localTruckData = {
+        ...payload,
         unitNumber: formData.unitNumber,
-        plate: formData.plate.toUpperCase(),
-        model: formData.model,
-        driverName: formData.driverName,
-        capacityTons: parseFloat(formData.capacityTons) || 0,
+        plate: payload.plateNumber,
+        capacityTons: payload.capacityKg / 1000,
         status: formData.status,
+        driverName: selectedDriver?.username || 'Sin chofer',
       };
 
       if (editingTruck) {
-        await api.put(`/trucks/${editingTruck.id}`, payload).catch(() => null);
+        await api.put(`/trucks/${editingTruck.id}`, payload);
         setTrucks((prev) =>
-          prev.map((t) => (t.id === editingTruck.id ? { ...t, ...payload } : t))
+          prev.map((t) => (t.id === editingTruck.id ? { ...t, ...localTruckData } : t))
         );
       } else {
-        const res = await api.post('/trucks', payload).catch(() => null);
-        const newUnit = res?.data || { id: Date.now(), ...payload };
+        const res = await api.post('/trucks', payload);
+        const newUnit = { ...res.data, ...localTruckData, id: res.data.id };
         setTrucks((prev) => [newUnit, ...prev]);
       }
 
@@ -104,7 +131,7 @@ export default function Trucks() {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Deseas dar de baja esta unidad de la flotilla?')) return;
     try {
-      await api.delete(`/trucks/${id}`).catch(() => null);
+      await api.delete(`/trucks/${id}`);
       setTrucks((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
       console.error(err);
@@ -114,13 +141,6 @@ export default function Trucks() {
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'IN_ROUTE':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800/60">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-            En Ruta
-          </span>
-        );
       case 'MAINTENANCE':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800/60">
@@ -195,7 +215,6 @@ export default function Trucks() {
           {[
             { id: 'ALL', label: 'Todos' },
             { id: 'AVAILABLE', label: 'Disponibles' },
-            { id: 'IN_ROUTE', label: 'En Ruta' },
             { id: 'MAINTENANCE', label: 'En Taller' },
           ].map((st) => (
             <button
@@ -338,15 +357,34 @@ export default function Trucks() {
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                  Chofer Asignado
+                  Año de la unidad
                 </label>
                 <input
-                  type="text"
-                  placeholder="Nombre completo del operador"
-                  value={formData.driverName}
-                  onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+                  type="number"
+                  min="1900"
+                  max="2100"
+                  required
+                  value={formData.year}
+                  onChange={(e) => setFormData({ ...formData, year: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                  Chofer Asignado
+                </label>
+                <select
+                  required
+                  value={formData.driverId}
+                  onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                >
+                  <option value="">-- Selecciona un chofer --</option>
+                  {drivers.map((driver) => (
+                    <option key={driver.id} value={driver.id}>{driver.username}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -374,7 +412,6 @@ export default function Trucks() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
                   >
                     <option value="AVAILABLE">Disponible</option>
-                    <option value="IN_ROUTE">En Ruta</option>
                     <option value="MAINTENANCE">En Taller</option>
                   </select>
                 </div>

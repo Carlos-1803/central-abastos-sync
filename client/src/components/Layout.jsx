@@ -10,7 +10,7 @@ const Layout = ({ children }) => {
       <Sidebar />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col ml-14 bg-slate-950">
+      <div className="flex-1 min-w-0 flex flex-col bg-slate-950">
         <main className="flex-1 overflow-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             {children || <Outlet />}

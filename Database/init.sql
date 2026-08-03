@@ -1,3 +1,7 @@
+-- ARCHIVO LEGACY. Para la versión actual usa `dotnet ef database update`
+-- y después `Database/seed-dev.sql`. No combines este script con migraciones
+-- en la misma base de datos.
+
 -- Database schema for central-abastos-sync
 -- Order management and truck fleet management
 

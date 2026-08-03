@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import axiosClient from '../api/axiosClient';
+import axiosClient from '../services/axiosClient';
 
 export const UsersList = () => {
   const [users, setUsers] = useState([]);
@@ -81,8 +81,9 @@ export const UsersList = () => {
           />
           <select value={newRoleId} onChange={(e) => setNewRoleId(e.target.value)}>
             <option value={1}>ADMIN</option>
-            <option value={2}>LOGISTICS</option>
-            <option value={3}>VENDEDOR</option>
+            <option value={2}>LEVANTA PEDIDOS</option>
+            <option value={3}>BODEGA</option>
+            <option value={4}>CHOFER</option>
           </select>
           <button type="submit">Crear Empleado</button>
         </form>

@@ -1,290 +1,551 @@
+using System.Security.Claims;
+using CentralAbastos.Api.Authorization;
+using CentralAbastos.Api.Controllers.Dtos;
+using CentralAbastos.Api.Data;
+using CentralAbastos.Api.Domain;
+using CentralAbastos.Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using CentralAbastos.Api.Models;
-using CentralAbastos.Api.Data;
-using CentralAbastos.Api.Controllers.Dtos;
 
-namespace CentralAbastos.Api.Controllers
+namespace CentralAbastos.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class OrdersController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class OrdersController : ControllerBase
+    private readonly ApplicationDbContext _context;
+
+    public OrdersController(ApplicationDbContext context)
     {
-        private readonly ApplicationDbContext _context;
-
-        public OrdersController(ApplicationDbContext context)
-        {
-            _context = context;
-        }
-
-        // GET: api/Orders
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetOrders()
-        {
-            var orders = await _context.Orders
-                .Select(o => new OrderResponseDto
-                {
-                    Id = o.Id,
-                    ClientId = o.ClientId,
-                    ClientName = o.Client != null ? o.Client.Name : string.Empty,
-                    OrderDate = o.OrderDate,
-                    Status = o.Status,
-                    TotalAmount = o.TotalAmount,
-                    AssignedTruckId = o.AssignedTruckId,
-                    TruckPlateNumber = o.AssignedTruck != null ? o.AssignedTruck.PlateNumber : null,
-                    DeliveryAddress = o.DeliveryAddress,
-                    DeliveryLatitude = o.DeliveryLatitude,
-                    DeliveryLongitude = o.DeliveryLongitude,
-                    Items = o.Items.Select(i => new OrderItemResponseDto
-                    {
-                        Id = i.Id,
-                        ProductId = i.ProductId,
-                        ProductName = i.Product != null ? i.Product.Name : string.Empty,
-                        Quantity = i.Quantity,
-                        UnitPrice = i.UnitPrice
-                    }).ToList()
-                })
-                .ToListAsync();
-
-            return Ok(orders);
-        }
-
-        // GET: api/Orders/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<OrderResponseDto>> GetOrder(int id)
-        {
-            var order = await _context.Orders
-                .Select(o => new OrderResponseDto
-                {
-                    Id = o.Id,
-                    ClientId = o.ClientId,
-                    ClientName = o.Client != null ? o.Client.Name : string.Empty,
-                    OrderDate = o.OrderDate,
-                    Status = o.Status,
-                    TotalAmount = o.TotalAmount,
-                    AssignedTruckId = o.AssignedTruckId,
-                    TruckPlateNumber = o.AssignedTruck != null ? o.AssignedTruck.PlateNumber : null,
-                    DeliveryAddress = o.DeliveryAddress,
-                    DeliveryLatitude = o.DeliveryLatitude,
-                    DeliveryLongitude = o.DeliveryLongitude,
-                    Items = o.Items.Select(i => new OrderItemResponseDto
-                    {
-                        Id = i.Id,
-                        ProductId = i.ProductId,
-                        ProductName = i.Product != null ? i.Product.Name : string.Empty,
-                        Quantity = i.Quantity,
-                        UnitPrice = i.UnitPrice
-                    }).ToList()
-                })
-                .FirstOrDefaultAsync(o => o.Id == id);
-
-            if (order == null)
-            {
-                return NotFound();
-            }
-
-            return Ok(order);
-        }
-
-        // PUT: api/Orders/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutOrder(int id, OrderUpdateDto dto)
-        {
-            var order = await _context.Orders
-                .Include(o => o.Items)
-                .FirstOrDefaultAsync(o => o.Id == id);
-
-            if (order == null)
-            {
-                return NotFound();
-            }
-
-            order.DeliveryAddress = dto.DeliveryAddress;
-            order.DeliveryLatitude = dto.DeliveryLatitude;
-            order.DeliveryLongitude = dto.DeliveryLongitude;
-
-            if (dto.Items != null)
-            {
-                _context.OrderItems.RemoveRange(order.Items);
-
-                order.Items = new List<OrderItem>();
-                foreach (var itemDto in dto.Items)
-                {
-                    var productExists = await _context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
-                    if (!productExists)
-                    {
-                        return BadRequest($"El ProductId {itemDto.ProductId} no existe.");
-                    }
-
-                    var orderItem = new OrderItem
-                    {
-                        ProductId = itemDto.ProductId,
-                        Quantity = itemDto.Quantity,
-                        UnitPrice = itemDto.UnitPrice
-                    };
-
-                    order.Items.Add(orderItem);
-                }
-            }
-
-            order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!OrderExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return NoContent();
-        }
-
-        // POST: api/Orders
-        [HttpPost]
-public async Task<ActionResult<OrderResponseDto>> PostOrder(OrderCreateDto dto)
-{
-    // 1. Validar que el cliente exista
-    var clientExists = await _context.Clients.AnyAsync(c => c.Id == dto.ClientId);
-    if (!clientExists)
-    {
-        return BadRequest($"El ClientId {dto.ClientId} no existe.");
+        _context = context;
     }
 
-    // 2. Validar que el usuario que crea la orden exista en la tabla Users
-    var userExists = await _context.Users.AnyAsync(u => u.Id == dto.CreatedByUserId);
-    if (!userExists)
+    [HttpGet]
+    [Authorize(Roles = RoleNames.AdminOrWarehouse)]
+    public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetOrders()
     {
-        return BadRequest($"El CreatedByUserId {dto.CreatedByUserId} no existe en la base de datos.");
+        var orders = await ProjectOrders(_context.Orders)
+            .OrderByDescending(order => order.OrderDate)
+            .ToListAsync();
+
+        return Ok(orders);
     }
 
-    // 3. Validar productos
-    if (dto.Items != null)
+    [HttpGet("{id:int}")]
+    [Authorize(Roles = RoleNames.AllOperationalRoles)]
+    public async Task<ActionResult<OrderResponseDto>> GetOrder(int id)
     {
-        foreach (var itemDto in dto.Items)
-        {
-            var productExists = await _context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
-            if (!productExists)
+        var accessData = await _context.Orders
+            .Where(order => order.Id == id)
+            .Select(order => new
             {
-                return BadRequest($"El ProductId {itemDto.ProductId} no existe.");
-            }
+                order.CreatedByUserId,
+                DriverId = order.AssignedTruck != null ? order.AssignedTruck.DriverId : null
+            })
+            .FirstOrDefaultAsync();
+
+        if (accessData is null)
+        {
+            return NotFound("Orden no encontrada.");
         }
+
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var currentUserId = GetCurrentUserId();
+
+        if (RoleNames.IsOrderTaker(role) &&
+            (currentUserId is null || accessData.CreatedByUserId != currentUserId.Value))
+        {
+            return Forbid();
+        }
+
+        if (RoleNames.IsDriver(role) &&
+            (currentUserId is null || accessData.DriverId != currentUserId.Value))
+        {
+            return Forbid();
+        }
+
+        var order = await ProjectOrders(_context.Orders.Where(item => item.Id == id))
+            .FirstAsync();
+
+        return Ok(order);
     }
 
-    // 4. Instanciar la Orden asignando CreatedByUserId
-    var order = new Order
+    [HttpGet("mine")]
+    [Authorize(Roles = RoleNames.AdminOrOrderTaker)]
+    public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetMyOrders()
     {
-        ClientId = dto.ClientId,
-        CreatedByUserId = dto.CreatedByUserId, // <-- Mapeo clave para evitar el error de FK
-        DeliveryAddress = dto.DeliveryAddress,
-        DeliveryLatitude = dto.DeliveryLatitude,
-        DeliveryLongitude = dto.DeliveryLongitude,
-        OrderDate = DateTime.UtcNow,
-        Status = "Pending",
-        Items = new List<OrderItem>()
-    };
-
-    if (dto.Items != null)
-    {
-        foreach (var itemDto in dto.Items)
+        var userId = GetCurrentUserId();
+        if (userId is null)
         {
-            var orderItem = new OrderItem
-            {
-                ProductId = itemDto.ProductId,
-                Quantity = itemDto.Quantity,
-                UnitPrice = itemDto.UnitPrice
-            };
-
-            order.Items.Add(orderItem);
+            return Unauthorized();
         }
+
+        var orders = await ProjectOrders(
+                _context.Orders.Where(order => order.CreatedByUserId == userId.Value))
+            .OrderByDescending(order => order.OrderDate)
+            .ToListAsync();
+
+        return Ok(orders);
     }
 
-    order.TotalAmount = order.Items.Sum(oi => oi.Quantity * oi.UnitPrice);
-
-    _context.Orders.Add(order);
-    await _context.SaveChangesAsync();
-
-    return await GetOrder(order.Id);
-}
-
-        // DELETE: api/Orders/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteOrder(int id)
+    [HttpGet("warehouse")]
+    [Authorize(Roles = RoleNames.AdminOrWarehouse)]
+    public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetWarehouseQueue()
+    {
+        var warehouseStatuses = new[]
         {
-            var order = await _context.Orders.FindAsync(id);
-            if (order == null)
-            {
-                return NotFound();
-            }
+            OrderStatuses.Pending,
+            OrderStatuses.Confirmed,
+            OrderStatuses.Preparing,
+            OrderStatuses.ReadyForDispatch
+        };
 
-            _context.Orders.Remove(order);
-            await _context.SaveChangesAsync();
+        var orders = await ProjectOrders(
+                _context.Orders.Where(order => warehouseStatuses.Contains(order.Status)))
+            .OrderBy(order => order.OrderDate)
+            .ToListAsync();
 
-            return NoContent();
+        return Ok(orders);
+    }
+
+    [HttpGet("driver-dashboard")]
+    [Authorize(Roles = RoleNames.AdminOrDriver)]
+    public async Task<ActionResult<DriverDashboardDto>> GetDriverDashboard([FromQuery] int? driverId = null)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
         }
 
-        // GET: api/orders/routes/{choferId}
-        [HttpGet("routes/{choferId}")]
-        public async Task<ActionResult<IEnumerable<object>>> GetRoutesForDriver(int choferId)
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var targetDriverId = RoleNames.IsAdmin(role) && driverId.HasValue
+            ? driverId.Value
+            : currentUserId.Value;
+
+        var driver = await _context.Users
+            .Include(user => user.Role)
+            .FirstOrDefaultAsync(user => user.Id == targetDriverId);
+
+        if (driver?.Role is null || !RoleNames.IsDriver(driver.Role.Name))
         {
-            var user = await _context.Users
-                .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Id == choferId);
+            return NotFound(new { message = "El usuario no está registrado con el rol Chofer." });
+        }
 
-            if (user == null || user.Role == null || user.Role.Name != "Chofer")
+        var truck = await _context.Trucks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.DriverId == targetDriverId && item.IsActive);
+
+        if (truck is null)
+        {
+            return NotFound(new { message = "No tienes un camión activo asignado." });
+        }
+
+        var orders = await ProjectOrders(
+                _context.Orders.Where(order =>
+                    order.AssignedTruckId == truck.Id &&
+                    order.Status != OrderStatuses.Cancelled))
+            .OrderBy(order => order.Status == OrderStatuses.Delivered)
+            .ThenBy(order => order.OrderDate)
+            .Take(50)
+            .ToListAsync();
+
+        return Ok(new DriverDashboardDto
+        {
+            Truck = new DriverTruckDto
             {
-                return NotFound($"El usuario con ID {choferId} no es un chofer.");
+                Id = truck.Id,
+                PlateNumber = truck.PlateNumber,
+                Model = truck.Model,
+                Year = truck.Year,
+                CapacityKg = truck.CapacityKg,
+                IsActive = truck.IsActive
+            },
+            Orders = orders
+        });
+    }
+
+    [HttpPut("{id:int}")]
+    [Authorize(Roles = RoleNames.AdminOrOrderTaker)]
+    public async Task<IActionResult> PutOrder(int id, OrderUpdateDto dto)
+    {
+        var order = await _context.Orders
+            .Include(item => item.Items)
+            .FirstOrDefaultAsync(item => item.Id == id);
+
+        if (order is null)
+        {
+            return NotFound("Orden no encontrada.");
+        }
+
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var currentUserId = GetCurrentUserId();
+        if (RoleNames.IsOrderTaker(role) &&
+            (currentUserId is null ||
+             order.CreatedByUserId != currentUserId.Value ||
+             (OrderStatuses.Normalize(order.Status) ?? order.Status) != OrderStatuses.Pending))
+        {
+            return Forbid();
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.DeliveryAddress))
+        {
+            order.DeliveryAddress = dto.DeliveryAddress.Trim();
+        }
+
+        order.DeliveryLatitude = dto.DeliveryLatitude ?? order.DeliveryLatitude;
+        order.DeliveryLongitude = dto.DeliveryLongitude ?? order.DeliveryLongitude;
+        if (dto.Notes is not null)
+        {
+            order.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
+        }
+
+        if (dto.Items is not null)
+        {
+            var productIds = dto.Items.Select(item => item.ProductId).Distinct().ToList();
+            var products = await _context.Products
+                .Where(product => productIds.Contains(product.Id) && product.IsActive)
+                .ToDictionaryAsync(product => product.Id);
+
+            if (products.Count != productIds.Count)
+            {
+                return BadRequest(new { message = "Uno o más productos no existen o están inactivos." });
             }
 
-            var truck = await _context.Trucks
-                .FirstOrDefaultAsync(t => t.DriverId == choferId);
-
-            if (truck == null)
+            _context.OrderItems.RemoveRange(order.Items);
+            order.Items = dto.Items.Select(item => new OrderItem
             {
-                return NotFound($"No hay un camión asignado al chofer con ID {choferId}.");
+                ProductId = item.ProductId,
+                Quantity = item.Quantity,
+                UnitPrice = products[item.ProductId].Price
+            }).ToList();
+        }
+
+        order.TotalAmount = order.Items.Sum(item => item.Quantity * item.UnitPrice);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [HttpPost]
+    [Authorize(Roles = RoleNames.AdminOrOrderTaker)]
+    public async Task<ActionResult<OrderResponseDto>> PostOrder(OrderCreateDto dto)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var creatorId = RoleNames.IsAdmin(role) && dto.CreatedByUserId.HasValue
+            ? dto.CreatedByUserId.Value
+            : currentUserId.Value;
+
+        var clientExists = await _context.Clients.AnyAsync(client =>
+            client.Id == dto.ClientId && client.IsActive);
+        if (!clientExists)
+        {
+            return BadRequest(new { message = $"El cliente con ID {dto.ClientId} no existe o está inactivo." });
+        }
+
+        var userExists = await _context.Users.AnyAsync(user => user.Id == creatorId);
+        if (!userExists)
+        {
+            return BadRequest(new { message = "El usuario que crea la orden no existe." });
+        }
+
+        var productIds = dto.Items.Select(item => item.ProductId).Distinct().ToList();
+        var products = await _context.Products
+            .Where(product => productIds.Contains(product.Id) && product.IsActive)
+            .ToDictionaryAsync(product => product.Id);
+
+        if (products.Count != productIds.Count)
+        {
+            return BadRequest(new { message = "Uno o más productos no existen o están inactivos." });
+        }
+
+        var order = new Order
+        {
+            ClientId = dto.ClientId,
+            CreatedByUserId = creatorId,
+            DeliveryAddress = dto.DeliveryAddress.Trim(),
+            DeliveryLatitude = dto.DeliveryLatitude,
+            DeliveryLongitude = dto.DeliveryLongitude,
+            Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim(),
+            OrderDate = DateTime.UtcNow,
+            Status = OrderStatuses.Pending,
+            Items = dto.Items.Select(item => new OrderItem
+            {
+                ProductId = item.ProductId,
+                Quantity = item.Quantity,
+                UnitPrice = products[item.ProductId].Price
+            }).ToList()
+        };
+
+        order.TotalAmount = order.Items.Sum(item => item.Quantity * item.UnitPrice);
+
+        _context.Orders.Add(order);
+        await _context.SaveChangesAsync();
+
+        var response = await ProjectOrders(_context.Orders.Where(item => item.Id == order.Id))
+            .FirstAsync();
+
+        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, response);
+    }
+
+    [HttpPatch("{id:int}/status")]
+    [Authorize(Roles = RoleNames.AllOperationalRoles)]
+    public async Task<IActionResult> UpdateOrderStatus(int id, OrderStatusUpdateDto dto)
+    {
+        var nextStatus = OrderStatuses.Normalize(dto.Status);
+        if (nextStatus is null)
+        {
+            return BadRequest(new { message = "El estatus solicitado no es válido." });
+        }
+
+        var order = await _context.Orders
+            .Include(item => item.Items)
+                .ThenInclude(item => item.Product)
+            .Include(item => item.AssignedTruck)
+            .FirstOrDefaultAsync(item => item.Id == id);
+
+        if (order is null)
+        {
+            return NotFound(new { message = "Orden no encontrada." });
+        }
+
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var currentUserId = GetCurrentUserId();
+
+        if (RoleNames.IsDriver(role))
+        {
+            if (currentUserId is null || order.AssignedTruck?.DriverId != currentUserId.Value)
+            {
+                return Forbid();
             }
 
-            var orders = await _context.Orders
-                .Where(o => o.AssignedTruckId == truck.Id &&
-                            (o.Status == "Shipped" || o.Status == "Out for Delivery"))
-                .Select(o => new
+            if (!IsValidDriverTransition(order.Status, nextStatus))
+            {
+                return BadRequest(new { message = "El chofer no puede realizar ese cambio de estatus." });
+            }
+        }
+        else if (RoleNames.IsWarehouse(role))
+        {
+            if (!IsValidWarehouseTransition(order.Status, nextStatus))
+            {
+                return BadRequest(new { message = "La transición solicitada no corresponde al flujo de bodega." });
+            }
+        }
+        else if (RoleNames.IsOrderTaker(role))
+        {
+            var currentStatus = OrderStatuses.Normalize(order.Status) ?? order.Status;
+            if (currentUserId is null ||
+                order.CreatedByUserId != currentUserId.Value ||
+                nextStatus != OrderStatuses.Cancelled ||
+                currentStatus != OrderStatuses.Pending)
+            {
+                return Forbid();
+            }
+        }
+        else if (!RoleNames.IsAdmin(role))
+        {
+            return Forbid();
+        }
+
+        if (nextStatus == OrderStatuses.OutForDelivery && order.AssignedTruckId is null)
+        {
+            return BadRequest(new { message = "La orden necesita un camión asignado antes de iniciar la entrega." });
+        }
+
+        if (nextStatus == OrderStatuses.ReadyForDispatch &&
+            !string.Equals(order.Status, OrderStatuses.ReadyForDispatch, StringComparison.OrdinalIgnoreCase))
+        {
+            var insufficientItems = order.Items
+                .Where(item => item.Product.Stock < item.Quantity)
+                .Select(item => $"{item.Product.Name} (existencia {item.Product.Stock}, solicitado {item.Quantity})")
+                .ToList();
+
+            if (insufficientItems.Count > 0)
+            {
+                return BadRequest(new
                 {
-                    orderId = o.Id,
-                    deliveryAddress = o.DeliveryAddress,
-                    latitude = o.DeliveryLatitude,
-                    longitude = o.DeliveryLongitude,
-                    customerName = o.Client != null ? o.Client.Name : string.Empty,
-                    orderDate = o.OrderDate
-                })
-                .ToListAsync();
+                    message = "No hay existencia suficiente para liberar el pedido.",
+                    products = insufficientItems
+                });
+            }
 
-            return Ok(orders);
+            foreach (var item in order.Items)
+            {
+                item.Product.Stock -= item.Quantity;
+            }
         }
-        // PUT: api/Orders/1/assign-truck
-[HttpPut("{id}/assign-truck")]
-public async Task<IActionResult> AssignTruckToOrder(int id, [FromQuery] int truckId)
-{
-    var order = await _context.Orders.FindAsync(id);
-    if (order == null) return NotFound("Orden no encontrada.");
 
-    order.AssignedTruckId = truckId;
-    order.Status = "Out for Delivery"; // <-- Importante: debe ser "Shipped" u "Out for Delivery"
+        order.Status = nextStatus;
+        await _context.SaveChangesAsync();
 
-    await _context.SaveChangesAsync();
-    return NoContent();
-}
+        return Ok(new { order.Id, order.Status });
+    }
 
-        private bool OrderExists(int id)
+    [HttpGet("routes/{driverId:int}")]
+    [Authorize(Roles = RoleNames.AdminOrDriver)]
+    public async Task<ActionResult<IEnumerable<object>>> GetRoutesForDriver(int driverId)
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var currentUserId = GetCurrentUserId();
+        if (RoleNames.IsDriver(role) &&
+            (currentUserId is null || currentUserId.Value != driverId))
         {
-            return _context.Orders.Any(e => e.Id == id);
+            return Forbid();
         }
+
+        var user = await _context.Users
+            .Include(item => item.Role)
+            .FirstOrDefaultAsync(item => item.Id == driverId);
+
+        if (user?.Role is null || !RoleNames.IsDriver(user.Role.Name))
+        {
+            return NotFound(new { message = $"El usuario con ID {driverId} no es un chofer." });
+        }
+
+        var truck = await _context.Trucks.FirstOrDefaultAsync(item => item.DriverId == driverId && item.IsActive);
+        if (truck is null)
+        {
+            return NotFound(new { message = $"No hay un camión asignado al chofer con ID {driverId}." });
+        }
+
+        var orders = await _context.Orders
+            .Where(order => order.AssignedTruckId == truck.Id &&
+                (order.Status == OrderStatuses.ReadyForDispatch ||
+                 order.Status == OrderStatuses.OutForDelivery))
+            .Select(order => new
+            {
+                orderId = order.Id,
+                deliveryAddress = order.DeliveryAddress,
+                latitude = order.DeliveryLatitude,
+                longitude = order.DeliveryLongitude,
+                customerName = order.Client.Name,
+                orderDate = order.OrderDate,
+                status = order.Status
+            })
+            .ToListAsync();
+
+        return Ok(orders);
+    }
+
+    [HttpPut("{id:int}/assign-truck")]
+    [Authorize(Roles = RoleNames.AdminOrWarehouse)]
+    public async Task<IActionResult> AssignTruckToOrder(int id, [FromQuery] int truckId)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order is null)
+        {
+            return NotFound(new { message = "Orden no encontrada." });
+        }
+
+        var currentStatus = OrderStatuses.Normalize(order.Status) ?? order.Status;
+        if (currentStatus == OrderStatuses.Delivered || currentStatus == OrderStatuses.Cancelled)
+        {
+            return BadRequest(new { message = "No se puede asignar una unidad a un pedido cerrado." });
+        }
+
+        var truck = await _context.Trucks.FirstOrDefaultAsync(item => item.Id == truckId && item.IsActive);
+        if (truck is null)
+        {
+            return BadRequest(new { message = "El camión no existe o está inactivo." });
+        }
+
+        if (truck.DriverId is null)
+        {
+            return BadRequest(new { message = "El camión debe tener un chofer asignado." });
+        }
+
+        order.AssignedTruckId = truckId;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { order.Id, order.AssignedTruckId, order.Status });
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    public async Task<IActionResult> DeleteOrder(int id)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order is null)
+        {
+            return NotFound("Orden no encontrada.");
+        }
+
+        _context.Orders.Remove(order);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(claim, out var userId) ? userId : null;
+    }
+
+    private static bool IsValidWarehouseTransition(string currentStatus, string nextStatus)
+    {
+        var current = OrderStatuses.Normalize(currentStatus) ?? currentStatus;
+
+        return (current, nextStatus) switch
+        {
+            (OrderStatuses.Pending, OrderStatuses.Confirmed) => true,
+            (OrderStatuses.Pending, OrderStatuses.Cancelled) => true,
+            (OrderStatuses.Confirmed, OrderStatuses.Preparing) => true,
+            (OrderStatuses.Confirmed, OrderStatuses.Cancelled) => true,
+            (OrderStatuses.Preparing, OrderStatuses.ReadyForDispatch) => true,
+            (OrderStatuses.Preparing, OrderStatuses.Cancelled) => true,
+            _ => false
+        };
+    }
+
+    private static bool IsValidDriverTransition(string currentStatus, string nextStatus)
+    {
+        var current = OrderStatuses.Normalize(currentStatus) ?? currentStatus;
+
+        return (current, nextStatus) switch
+        {
+            (OrderStatuses.ReadyForDispatch, OrderStatuses.OutForDelivery) => true,
+            (OrderStatuses.DeliveryFailed, OrderStatuses.OutForDelivery) => true,
+            (OrderStatuses.OutForDelivery, OrderStatuses.Delivered) => true,
+            (OrderStatuses.OutForDelivery, OrderStatuses.DeliveryFailed) => true,
+            _ => false
+        };
+    }
+
+    private static IQueryable<OrderResponseDto> ProjectOrders(IQueryable<Order> query)
+    {
+        return query.Select(order => new OrderResponseDto
+        {
+            Id = order.Id,
+            ClientId = order.ClientId,
+            ClientName = order.Client.Name,
+            OrderDate = order.OrderDate,
+            Status = order.Status,
+            TotalAmount = order.TotalAmount,
+            AssignedTruckId = order.AssignedTruckId,
+            TruckPlateNumber = order.AssignedTruck != null ? order.AssignedTruck.PlateNumber : null,
+            CreatedByUserId = order.CreatedByUserId,
+            CreatedByUsername = order.CreatedByUser.Username,
+            DeliveryAddress = order.DeliveryAddress,
+            DeliveryLatitude = order.DeliveryLatitude,
+            DeliveryLongitude = order.DeliveryLongitude,
+            Notes = order.Notes,
+            Items = order.Items.Select(item => new OrderItemResponseDto
+            {
+                Id = item.Id,
+                ProductId = item.ProductId,
+                ProductName = item.Product.Name,
+                Quantity = item.Quantity,
+                UnitPrice = item.UnitPrice
+            }).ToList()
+        });
     }
 }

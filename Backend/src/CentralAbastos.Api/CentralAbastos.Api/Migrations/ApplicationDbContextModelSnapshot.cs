@@ -68,6 +68,10 @@ namespace CentralAbastos.Api.Migrations
                     b.Property<double?>("DeliveryLongitude")
                         .HasColumnType("double");
 
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<DateTime>("OrderDate")
                         .HasColumnType("datetime(6)");
 
