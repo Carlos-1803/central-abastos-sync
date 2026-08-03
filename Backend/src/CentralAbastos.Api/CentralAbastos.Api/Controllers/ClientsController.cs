@@ -1,149 +1,134 @@
+using CentralAbastos.Api.Authorization;
+using CentralAbastos.Api.Controllers.Dtos;
+using CentralAbastos.Api.Data;
+using CentralAbastos.Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using CentralAbastos.Api.Models;
-using CentralAbastos.Api.Data;
-using CentralAbastos.Api.Controllers.Dtos;
 
-namespace CentralAbastos.Api.Controllers
+namespace CentralAbastos.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class ClientsController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class ClientsController : ControllerBase
+    private readonly ApplicationDbContext _context;
+
+    public ClientsController(ApplicationDbContext context)
     {
-        private readonly ApplicationDbContext _context;
+        _context = context;
+    }
 
-        public ClientsController(ApplicationDbContext context)
-        {
-            _context = context;
-        }
-
-        // GET: api/Clients
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<ClientResponseDto>>> GetClients()
-        {
-            var clients = await _context.Clients
-                .Select(c => new ClientResponseDto
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Phone = c.Phone,
-                    Address = c.Address,
-                    IsActive = c.IsActive
-                })
-                .ToListAsync();
-
-            return Ok(clients);
-        }
-
-        // GET: api/Clients/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<ClientResponseDto>> GetClient(int id)
-        {
-            var client = await _context.Clients.FindAsync(id);
-
-            if (client == null)
-            {
-                return NotFound();
-            }
-
-            var clientDto = new ClientResponseDto
+    [HttpGet]
+    [Authorize(Roles = RoleNames.AdminOrOrderTaker)]
+    public async Task<ActionResult<IEnumerable<ClientResponseDto>>> GetClients()
+    {
+        var clients = await _context.Clients
+            .AsNoTracking()
+            .OrderBy(client => client.Name)
+            .Select(client => new ClientResponseDto
             {
                 Id = client.Id,
                 Name = client.Name,
-                Phone = client.Phone,
-                Address = client.Address,
+                Phone = client.Phone ?? string.Empty,
+                Address = client.Address ?? string.Empty,
                 IsActive = client.IsActive
-            };
+            })
+            .ToListAsync();
 
-            return Ok(clientDto);
-        }
+        return Ok(clients);
+    }
 
-        // PUT: api/Clients/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutClient(int id, ClientUpdateDto clientDto)
+    [HttpGet("{id:int}")]
+    [Authorize(Roles = RoleNames.AdminOrOrderTaker)]
+    public async Task<ActionResult<ClientResponseDto>> GetClient(int id)
+    {
+        var client = await _context.Clients
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => new ClientResponseDto
+            {
+                Id = item.Id,
+                Name = item.Name,
+                Phone = item.Phone ?? string.Empty,
+                Address = item.Address ?? string.Empty,
+                IsActive = item.IsActive
+            })
+            .FirstOrDefaultAsync();
+
+        return client is null ? NotFound("Cliente no encontrado.") : Ok(client);
+    }
+
+    [HttpPut("{id:int}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    public async Task<IActionResult> PutClient(int id, ClientUpdateDto dto)
+    {
+        var client = await _context.Clients.FindAsync(id);
+        if (client is null)
         {
-            if (id == 0) // Assuming ID must be positive, but actually id from route should match
-            {
-                return BadRequest("Client ID is required");
-            }
-
-            var client = await _context.Clients.FindAsync(id);
-            if (client == null)
-            {
-                return NotFound();
-            }
-
-            // Map DTO to entity
-            client.Name = clientDto.Name;
-            client.Phone = clientDto.Phone;
-            client.Address = clientDto.Address;
-            client.IsActive = clientDto.IsActive;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!ClientExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return NoContent();
+            return NotFound("Cliente no encontrado.");
         }
 
-        // POST: api/Clients
-        [HttpPost]
-        public async Task<ActionResult<ClientResponseDto>> PostClient(ClientCreateDto clientDto)
+        client.Name = dto.Name.Trim();
+        client.Phone = string.IsNullOrWhiteSpace(dto.Phone) ? null : dto.Phone.Trim();
+        client.Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
+        client.IsActive = dto.IsActive;
+
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost]
+    [Authorize(Roles = RoleNames.AdminOrOrderTaker)]
+    public async Task<ActionResult<ClientResponseDto>> PostClient(ClientCreateDto dto)
+    {
+        var normalizedName = dto.Name.Trim();
+        var duplicate = await _context.Clients.AnyAsync(client =>
+            client.Name.ToUpper() == normalizedName.ToUpper() && client.IsActive);
+        if (duplicate)
         {
-            var client = new Client
-            {
-                Name = clientDto.Name,
-                Phone = clientDto.Phone,
-                Address = clientDto.Address,
-                IsActive = clientDto.IsActive
-            };
-
-            _context.Clients.Add(client);
-            await _context.SaveChangesAsync();
-
-            var clientDtoResult = new ClientResponseDto
-            {
-                Id = client.Id,
-                Name = client.Name,
-                Phone = client.Phone,
-                Address = client.Address,
-                IsActive = client.IsActive
-            };
-
-            return CreatedAtAction(nameof(GetClient), new { id = client.Id }, clientDtoResult);
+            return BadRequest(new { message = "Ya existe un cliente activo con ese nombre." });
         }
 
-        // DELETE: api/Clients/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteClient(int id)
+        var client = new Client
         {
-            var client = await _context.Clients.FindAsync(id);
-            if (client == null)
-            {
-                return NotFound();
-            }
+            Name = normalizedName,
+            Phone = string.IsNullOrWhiteSpace(dto.Phone) ? null : dto.Phone.Trim(),
+            Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim(),
+            IsActive = dto.IsActive
+        };
 
-            _context.Clients.Remove(client);
-            await _context.SaveChangesAsync();
+        _context.Clients.Add(client);
+        await _context.SaveChangesAsync();
 
-            return NoContent();
-        }
+        return CreatedAtAction(nameof(GetClient), new { id = client.Id }, ToDto(client));
+    }
 
-        private bool ClientExists(int id)
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    public async Task<IActionResult> DeleteClient(int id)
+    {
+        var client = await _context.Clients.FindAsync(id);
+        if (client is null)
         {
-            return _context.Clients.Any(e => e.Id == id);
+            return NotFound("Cliente no encontrado.");
         }
+
+        _context.Clients.Remove(client);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private static ClientResponseDto ToDto(Client client)
+    {
+        return new ClientResponseDto
+        {
+            Id = client.Id,
+            Name = client.Name,
+            Phone = client.Phone ?? string.Empty,
+            Address = client.Address ?? string.Empty,
+            IsActive = client.IsActive
+        };
     }
 }

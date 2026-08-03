@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { normalizeRole, ROLES } from '../utils/roles';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
@@ -13,7 +14,7 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
-    role: 'LOGISTICS', // ADMIN, LOGISTICS, DRIVER, LEVANTA_PEDIDOS
+    role: ROLES.ORDER_TAKER,
     status: 'ACTIVE',   // ACTIVE, INACTIVE
     password: '',
   });
@@ -41,7 +42,7 @@ export default function Users() {
     setEditingUser(null);
     setFormData({
       username: '',
-      role: 'LOGISTICS',
+      role: ROLES.ORDER_TAKER,
       status: 'ACTIVE',
       password: '',
     });
@@ -52,7 +53,7 @@ export default function Users() {
     setEditingUser(user);
     setFormData({
       username: user.username || '',
-      role: user.roleName || 'LOGISTICS',
+      role: normalizeRole(user.roleName || user.role) || ROLES.ORDER_TAKER,
       status: user.status || 'ACTIVE',
       password: '', // Dejar en blanco si no se va a actualizar la clave
     });
@@ -62,18 +63,17 @@ export default function Users() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Mapeo del nombre del rol a ID numérico para tu API de .NET
-      // (Ajusta el número '4' si en tu base de datos 'Levanta Pedidos' tiene otro ID)
+      // IDs sembrados en ApplicationDbContext: Admin=1, LevantaPedido=2, Bodega=3, Chofer=4.
       const roleMapping = {
-        'ADMIN': 1,
-        'LOGISTICS': 2,
-        'DRIVER': 3,
-        'LEVANTA_PEDIDOS': 4,
+        [ROLES.ADMIN]: 1,
+        [ROLES.ORDER_TAKER]: 2,
+        [ROLES.WAREHOUSE]: 3,
+        [ROLES.DRIVER]: 4,
       };
 
       const payload = {
         username: formData.username,
-        roleId: roleMapping[formData.role] || 2,
+        roleId: roleMapping[normalizeRole(formData.role)] || 2,
       };
 
       if (formData.password) {
@@ -96,7 +96,7 @@ export default function Users() {
       fetchUsers();
     } catch (err) {
       console.error('Error detallado al guardar:', err.response?.data || err.message);
-      setError(err.response?.data?.message || 'Error al guardar el usuario en el servidor.');
+      setError(err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : 'Error al guardar el usuario en el servidor.'));
     }
   };
 
@@ -112,26 +112,26 @@ export default function Users() {
   };
 
   const getRoleBadge = (roleName) => {
-    switch (roleName?.toUpperCase()) {
-      case 'ADMIN':
+    switch (normalizeRole(roleName)) {
+      case ROLES.ADMIN:
         return (
           <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-950/80 text-purple-400 border border-purple-800/60 uppercase">
             ⚡ Admin
           </span>
         );
-      case 'DRIVER':
+      case ROLES.DRIVER:
         return (
           <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800/60 uppercase">
             🚛 Chofer
           </span>
         );
-      case 'LOGISTICS':
+      case ROLES.WAREHOUSE:
         return (
           <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-950/80 text-blue-400 border border-blue-800/60 uppercase">
-            📦 Logística
+            🏬 Bodega
           </span>
         );
-      case 'LEVANTA_PEDIDOS':
+      case ROLES.ORDER_TAKER:
         return (
           <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 uppercase">
             📝 Levanta Pedidos
@@ -151,7 +151,7 @@ export default function Users() {
     const roleName = u.roleName || u.role || '';
     
     const matchesSearch = username.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = roleFilter === 'ALL' || roleName.toUpperCase() === roleFilter;
+    const matchesRole = roleFilter === 'ALL' || normalizeRole(roleName) === roleFilter;
     return matchesSearch && matchesRole;
   });
 
@@ -202,10 +202,10 @@ export default function Users() {
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
           {[
             { id: 'ALL', label: 'Todos' },
-            { id: 'ADMIN', label: 'Admins' },
-            { id: 'LOGISTICS', label: 'Logística' },
-            { id: 'DRIVER', label: 'Choferes' },
-            { id: 'LEVANTA_PEDIDOS', label: 'Levanta Pedidos' },
+            { id: ROLES.ADMIN, label: 'Admins' },
+            { id: ROLES.WAREHOUSE, label: 'Bodega' },
+            { id: ROLES.DRIVER, label: 'Choferes' },
+            { id: ROLES.ORDER_TAKER, label: 'Levanta Pedidos' },
           ].map((rf) => (
             <button
               key={rf.id}
@@ -352,10 +352,10 @@ export default function Users() {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
                   >
-                    <option value="ADMIN">Administrador</option>
-                    <option value="LOGISTICS">Logística</option>
-                    <option value="DRIVER">Chofer</option>
-                    <option value="LEVANTA_PEDIDOS">Levanta Pedidos</option>
+                    <option value={ROLES.ADMIN}>Administrador</option>
+                    <option value={ROLES.ORDER_TAKER}>Levanta Pedidos</option>
+                    <option value={ROLES.WAREHOUSE}>Bodega</option>
+                    <option value={ROLES.DRIVER}>Chofer</option>
                   </select>
                 </div>
 

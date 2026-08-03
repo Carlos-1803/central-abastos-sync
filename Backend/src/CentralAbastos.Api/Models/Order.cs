@@ -19,6 +19,8 @@ namespace CentralAbastos.Api.Models
         public string? DeliveryAddress { get; set; }
         public double? DeliveryLatitude { get; set; }
         public double? DeliveryLongitude { get; set; }
+        [MaxLength(500)]
+        public string? Notes { get; set; }
 
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
     }

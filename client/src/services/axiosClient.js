@@ -1,8 +1,10 @@
 import axios from 'axios';
 
 // 1. Instancia principal con la URL base de tu backend (.NET API)
+const apiBaseUrl = (process.env.REACT_APP_API_URL || 'http://localhost:5247/api').replace(/\/+$/, '');
+
 const axiosClient = axios.create({
-  baseURL: 'http://localhost:5247/api',
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,7 +30,7 @@ axiosClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    if (error.response && error.response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
 
