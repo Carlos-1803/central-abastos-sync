@@ -1,12 +1,10 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getRoleHomePath, normalizeRole } from '../utils/roles';
 
 export default function ProtectedRoute({ allowedRoles }) {
   const { user, loading } = useAuth();
-
-  // Console.log útil para depurar si tu rol viene como 'role', 'rol', o 'Role'
-
 
   if (loading) {
     return (
@@ -20,11 +18,11 @@ export default function ProtectedRoute({ allowedRoles }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    if (user.role === 'DRIVER') return <Navigate to="/fleet/active" replace />;
-    
-    // CORRECCIÓN: Redirigimos a /profile en lugar de / para evitar el bucle infinito
-    return <Navigate to="/profile" replace />;
+  const userRole = normalizeRole(user.role);
+  const normalizedAllowedRoles = allowedRoles?.map(normalizeRole);
+
+  if (normalizedAllowedRoles && !normalizedAllowedRoles.includes(userRole)) {
+    return <Navigate to={getRoleHomePath(userRole)} replace />;
   }
 
   return <Outlet />;

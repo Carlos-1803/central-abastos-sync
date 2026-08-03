@@ -2,51 +2,54 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosClient from '../services/axiosClient';
+import { getRoleHomePath, normalizeRole } from '../utils/roles';
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  
-  // Cambiado email a username para coincidir con tu API en .NET
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleCustomLogin = async (e) => {
-    e.preventDefault();
+  const handleCustomLogin = async (event) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // Petición real al backend
       const response = await axiosClient.post('/auth/login', {
         username,
         password,
       });
 
-      const { token, username: dbUsername, roleName } = response.data;
-
-      // 1. Guardar en localStorage
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify({ username: dbUsername, role: roleName }));
-
-      // 2. Actualizar el contexto de autenticación
-      login({
+      const {
+        id,
+        userId,
         username: dbUsername,
-        role: roleName,
+        roleName,
         token,
-      });
+      } = response.data;
 
-      // 3. Redirección según rol
-      if (roleName === 'DRIVER' || roleName === 'CHOFER') {
-        navigate('/fleet/active');
-      } else {
-        navigate('/');
-      }
+      const normalizedRole = normalizeRole(roleName);
+      const session = {
+        id: id ?? userId,
+        username: dbUsername,
+        role: normalizedRole,
+        token,
+      };
+
+      login(session);
+      navigate(getRoleHomePath(normalizedRole), { replace: true });
     } catch (err) {
-      if (err.response && err.response.data) {
-        setError(typeof err.response.data === 'string' ? err.response.data : 'Credenciales inválidas.');
+      if (err.response?.data) {
+        const apiMessage = err.response.data;
+        setError(
+          typeof apiMessage === 'string'
+            ? apiMessage
+            : apiMessage.message || 'Credenciales inválidas.'
+        );
       } else {
         setError('Error de conexión con el servidor backend.');
       }
@@ -65,10 +68,11 @@ export default function Login() {
           <h1 className="text-xl font-black uppercase text-white tracking-wider">
             Central Abastos Sync
           </h1>
-          <p className="text-xs text-slate-400">Inicia sesión con tus credenciales de empleado</p>
+          <p className="text-xs text-slate-400">
+            Inicia sesión con tus credenciales de empleado
+          </p>
         </div>
 
-        {/* Mensaje de Error Real */}
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs text-center font-bold">
             {error}
@@ -84,8 +88,9 @@ export default function Login() {
               type="text"
               required
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Ej. admin, edreyes"
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="Ej. admin, chofer1"
+              autoComplete="username"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
             />
           </div>
@@ -98,8 +103,9 @@ export default function Login() {
               type="password"
               required
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
+              autoComplete="current-password"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
             />
           </div>

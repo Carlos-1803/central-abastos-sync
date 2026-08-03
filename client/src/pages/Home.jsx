@@ -44,19 +44,13 @@ export default function Home() {
         (o) => o.status === 'Pending' || o.status === 'Pendiente'
       ).length;
 
-      let activeTrucksCount = 0;
-      try {
-        const trucksResponse = await axiosClient.get('/trucks').catch(() => axiosClient.get('/fleet'));
-        if (trucksResponse?.data) {
-          activeTrucksCount = trucksResponse.data.filter(
-            (t) => t.status === 'In Transit' || t.status === 'Active' || t.status === 'En Ruta'
-          ).length;
-        }
-      } catch {
-        activeTrucksCount = orders.filter(
-          (o) => o.status === 'Out for Delivery' || o.status === 'En Ruta'
-        ).length;
-      }
+      const activeTruckIds = new Set(
+        orders
+          .filter((order) => order.status === 'Out for Delivery' || order.status === 'En Ruta')
+          .map((order) => order.assignedTruckId)
+          .filter(Boolean)
+      );
+      const activeTrucksCount = activeTruckIds.size;
 
       setStats({
         todayOrders: todayOrdersList.length,

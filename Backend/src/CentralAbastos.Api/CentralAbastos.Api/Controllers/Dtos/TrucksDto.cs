@@ -8,6 +8,7 @@ namespace CentralAbastos.Api.Controllers.Dtos
         [StringLength(20)]
         public string PlateNumber { get; set; }
 
+        [Required]
         [StringLength(50)]
         public string Model { get; set; }
 
@@ -29,6 +30,7 @@ namespace CentralAbastos.Api.Controllers.Dtos
         [StringLength(20)]
         public string PlateNumber { get; set; }
 
+        [Required]
         [StringLength(50)]
         public string Model { get; set; }
 
@@ -53,6 +55,6 @@ namespace CentralAbastos.Api.Controllers.Dtos
         public double CapacityKg { get; set; }
         public bool IsActive { get; set; }
         public int? DriverId { get; set; }
-        public string DriverName { get; set; } // Populated via Join in GET
+        public string? DriverName { get; set; } // Populated via Join in GET
     }
 }

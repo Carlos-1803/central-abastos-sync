@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { normalizeRole, ROLES } from '../utils/roles';
 
 export default function ProductsCatalog() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const currentRole = normalizeRole(user?.role);
+  const canCreateOrder = currentRole === ROLES.ADMIN;
+  const canDelete = currentRole === ROLES.ADMIN;
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,17 +38,16 @@ export default function ProductsCatalog() {
       setLoading(true);
       setError(null);
       const response = await api.get('/products');
-      setProducts(response.data || []);
+      setProducts((response.data || []).map((product) => ({
+        ...product,
+        code: product.code || `PRD-${String(product.id).padStart(3, '0')}`,
+        category: product.category || 'GENERAL',
+        unit: product.unit || 'Pza',
+      })));
     } catch (err) {
       console.error('Error al obtener productos:', err);
-      // Datos demo de respaldo
-      setProducts([
-        { id: 1, code: 'PRD-001', name: 'Jitomate Saladette', category: 'VERDURAS', price: 28.5, stock: 450, unit: 'Kg' },
-        { id: 2, code: 'PRD-002', name: 'Cebolla Blanca', category: 'VERDURAS', price: 18.0, stock: 12, unit: 'Kg' },
-        { id: 3, code: 'PRD-003', name: 'Aguacate Hass', category: 'FRUTAS', price: 65.0, stock: 0, unit: 'Kg' },
-        { id: 4, code: 'PRD-004', name: 'Papa Blanca Alpha', category: 'TUBERCULOS', price: 22.0, stock: 890, unit: 'Kg' },
-        { id: 5, code: 'PRD-005', name: 'Limón Sin Semilla', category: 'FRUTAS', price: 34.0, stock: 210, unit: 'Kg' },
-      ]);
+      setProducts([]);
+      setError(err.response?.data?.message || 'No se pudo cargar el catálogo de productos.');
     } finally {
       setLoading(false);
     }
@@ -74,24 +79,23 @@ export default function ProductsCatalog() {
     e.preventDefault();
     try {
       const payload = {
-        code: formData.code,
-        name: formData.name,
-        category: formData.category.toUpperCase(),
+        name: formData.name.trim(),
+        description: `${formData.category.toUpperCase()} • Unidad: ${formData.unit}`,
         price: parseFloat(formData.price) || 0,
-        stock: parseInt(formData.stock) || 0,
-        unit: formData.unit,
+        stock: parseInt(formData.stock, 10) || 0,
+        isActive: true,
       };
 
       if (editingProduct) {
         // Actualizar vía API
-        await api.put(`/products/${editingProduct.id}`, payload).catch(() => null);
+        await api.put(`/products/${editingProduct.id}`, payload);
         setProducts((prev) =>
-          prev.map((p) => (p.id === editingProduct.id ? { ...p, ...payload } : p))
+          prev.map((p) => (p.id === editingProduct.id ? { ...p, ...payload, code: formData.code, category: formData.category, unit: formData.unit } : p))
         );
       } else {
         // Crear vía API
-        const res = await api.post('/products', payload).catch(() => null);
-        const newProd = res?.data || { id: Date.now(), ...payload };
+        const res = await api.post('/products', payload);
+        const newProd = { ...res.data, code: formData.code || `PRD-${String(res.data.id).padStart(3, '0')}`, category: formData.category, unit: formData.unit };
         setProducts((prev) => [newProd, ...prev]);
       }
 
@@ -107,7 +111,7 @@ export default function ProductsCatalog() {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este producto del catálogo?')) return;
 
     try {
-      await api.delete(`/products/${id}`).catch(() => null);
+      await api.delete(`/products/${id}`);
       setProducts((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
       console.error('Error al eliminar producto:', err);
@@ -257,13 +261,15 @@ export default function ProductsCatalog() {
                     <td className="py-3.5 px-4">{getStockBadge(p.stock)}</td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => navigate(`/orders/new?product=${p.id}`)}
-                          title="Crear orden con este producto"
-                          className="p-1.5 bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-slate-800 rounded-lg text-xs"
-                        >
-                          🛒
-                        </button>
+                        {canCreateOrder && (
+                          <button
+                            onClick={() => navigate(`/orders/new?product=${p.id}`)}
+                            title="Crear orden con este producto"
+                            className="p-1.5 bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-slate-800 rounded-lg text-xs"
+                          >
+                            🛒
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenEditModal(p)}
                           title="Editar Producto"
@@ -271,13 +277,15 @@ export default function ProductsCatalog() {
                         >
                           ✏️
                         </button>
-                        <button
-                          onClick={() => handleDeleteProduct(p.id)}
-                          title="Eliminar Producto"
-                          className="p-1.5 bg-slate-950 hover:bg-rose-950/60 text-rose-400 border border-slate-800 rounded-lg text-xs"
-                        >
-                          🗑️
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDeleteProduct(p.id)}
+                            title="Eliminar Producto"
+                            className="p-1.5 bg-slate-950 hover:bg-rose-950/60 text-rose-400 border border-slate-800 rounded-lg text-xs"
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
